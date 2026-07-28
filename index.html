@@ -449,7 +449,8 @@ async function loadAuxAntigo(){
     tipos_demanda:"aux_tipos_demanda", tipos_documento:"aux_tipos_documento", status:"aux_status",
     predios:"aux_predios", tipos_tratativa:"aux_tipos_tratativa",
     tipos_irregularidade:"aux_tipos_irregularidade", feriados:"aux_feriados",
-    hipoteses_inabilit:"aux_hipoteses_inabilitacao", formas_recebimento:"aux_formas_recebimento"
+    hipoteses_inabilit:"aux_hipoteses_inabilitacao", formas_recebimento:"aux_formas_recebimento",
+    equivalencias:"aux_equivalencias"
   };
   // busca todas as tabelas EM PARALELO (antes era uma após a outra)
   const chaves=Object.keys(map);
@@ -478,6 +479,7 @@ function fallback(k){
   if(k==="tipos_irregularidade")return SEED.tipos_irregularidade||[];
   if(k==="feriados")return [];
   if(k==="formas_recebimento")return ["Presencial","Telefone","E-mail","Formulário eletrônico","WhatsApp","Fala.BR","Outros"];
+  if(k==="equivalencias")return [];
   if(k==="hipoteses_inabilit"){ // deriva da taxonomia oficial, se a tabela não existir
     return (AUX.taxonomia||SEED.taxonomia||[])
       .filter(t=>t.area==="Gestão de manifestações"&&/^Não habilitada/.test(t.subarea||""))
@@ -1910,6 +1912,7 @@ const AUXDEFS=[
   {key:"tipos_irregularidade",tbl:"aux_tipos_irregularidade",label:"Tipos de Irregularidade (CGM)",cols:[["nome","Nome"]],simple:true},
   {key:"feriados",tbl:"aux_feriados",label:"Feriados (exceções)",cols:[["data","Data"],["nome","Nome"],["tipo","Tipo"]]},
   {key:"formas_recebimento",tbl:"aux_formas_recebimento",label:"Formas de Recebimento",cols:[["nome","Nome"]],simple:true},
+  {key:"equivalencias",tbl:"aux_equivalencias",label:"Equivalências (importação)",cols:[["tipo","Tipo"],["de","Como vem na planilha"],["para","Valor oficial"]]},
   {key:"hipoteses_inabilit",tbl:"aux_hipoteses_inabilitacao",label:"Hipóteses de Inabilitação",cols:[["nome","Hipótese"],["fundamento","Fundamento"]]},
 ];
 let auxTab="taxonomia";
@@ -2000,6 +2003,42 @@ function acharCol(cabecalhos,chave){
   for(const c of cabecalhos){ if(alvos.some(a=>norm(c).startsWith(a))) return c; }
   return null;
 }
+// tenta descobrir o mês de referência pelo NOME DO ARQUIVO
+// aceita: "Manifestações JANEIRO 2026", "jan-2026", "2026-01", "01_2026", "Ouvidoria 03.2026"
+const MESES_PT=[["janeiro","jan"],["fevereiro","fev"],["marco","mar"],["abril","abr"],
+  ["maio","mai"],["junho","jun"],["julho","jul"],["agosto","ago"],["setembro","set"],
+  ["outubro","out"],["novembro","nov"],["dezembro","dez"]];
+function mesDoNome(nome){
+  const n=norm(String(nome||"").replace(/\.(xlsx|xls|csv)$/i,""));
+  let ano=null, mes=null;
+  const ma=n.match(/(20\d{2})/);            // ano de 4 dígitos
+  if(ma)ano=Number(ma[1]);
+  // mês por extenso ou abreviado
+  for(let i=0;i<12;i++){
+    const [ext,abr]=MESES_PT[i];
+    if(new RegExp("(^|[^a-z])"+ext).test(n)||new RegExp("(^|[^a-z])"+abr+"([^a-z]|$)").test(n)){mes=i+1;break;}
+  }
+  // formatos numéricos
+  if(mes===null){
+    let m=n.match(/(20\d{2})[^0-9]?(0[1-9]|1[0-2])(?![0-9])/);      // 2026-01
+    if(m){ano=Number(m[1]);mes=Number(m[2]);}
+    else{
+      m=n.match(/(?:^|[^0-9])(0?[1-9]|1[0-2])[^0-9](20\d{2})/);      // 01-2026
+      if(m){mes=Number(m[1]);ano=Number(m[2]);}
+      else{
+        m=n.match(/(?:^|[^0-9])(20\d{2})(0[1-9]|1[0-2])(?![0-9])/);  // 202601 (colado)
+        if(m){ano=Number(m[1]);mes=Number(m[2]);}
+        else{
+          m=n.match(/(?:^|[^0-9])(0[1-9]|1[0-2])(20\d{2})(?![0-9])/); // 012026 (colado)
+          if(m){mes=Number(m[1]);ano=Number(m[2]);}
+        }
+      }
+    }
+  }
+  if(ano&&mes)return String(ano)+"-"+String(mes).padStart(2,"0");
+  return null;
+}
+
 // converte data do Excel (número serial) ou texto para AAAA-MM-DD
 function dataPlanilha(v){
   if(v==null||v==="")return null;
@@ -2067,6 +2106,7 @@ async function lerArquivo(file){
     body.innerHTML=`<div class="conflito">Erro ao ler o arquivo: ${esc(e.message)}</div>`;return;
   }
   if(!linhas.length){body.innerHTML=`<div class="conflito">A planilha está vazia ou não tem cabeçalho na primeira linha.</div>`;return;}
+  const mesArquivo=mesDoNome(file.name);
 
   const cab=Object.keys(linhas[0]);
   const col={}; Object.keys(COLS).forEach(k=>col[k]=acharCol(cab,k));
@@ -2099,6 +2139,52 @@ async function lerArquivo(file){
     return c.length===1?c[0]:null;
   }
   const idxTipo=new Map(); (AUX.tipos_demanda||[]).forEach(t=>idxTipo.set(norm(t),t));
+
+  // ---- equivalências cadastradas (de/para) ----
+  const EQ=new Map();
+  (AUX.equivalencias||[]).forEach(e=>{if(e&&e.de&&e.para)EQ.set(String(e.tipo||"")+"|"+norm(e.de),e.para);});
+  const equiv=(tipo,txt)=>EQ.get(tipo+"|"+norm(txt))||null;
+
+  // singular/plural: "Cadastro" <-> "Cadastros"
+  const variantes=t=>{const n=norm(t);const v=[n];
+    if(n.endsWith("s"))v.push(n.slice(0,-1)); else v.push(n+"s");
+    if(n.endsWith("es"))v.push(n.slice(0,-2));
+    return v;};
+
+  // ---- órgão: sigla, nome, início da sigla, conteúdo do nome ----
+  function acharOrgao(txt){
+    const n=norm(txt); if(!n)return null;
+    const eq=equiv("orgao",txt); if(eq)return eq;
+    if(idxOrg.has(n))return idxOrg.get(n);
+    const L=AUX.orgaos||[];
+    const rot=o=>`${o.sigla} — ${o.nome}`;
+    let c=L.filter(o=>norm(o.sigla)===n||norm(o.nome)===n);              if(c.length===1)return rot(c[0]);
+    c=L.filter(o=>norm(o.sigla).startsWith(n)||n.startsWith(norm(o.sigla)));  if(c.length===1)return rot(c[0]);
+    c=L.filter(o=>norm(o.nome).includes(n));                              if(c.length===1)return rot(c[0]);
+    c=L.filter(o=>n.includes(norm(o.nome)));                              if(c.length===1)return rot(c[0]);
+    return null;
+  }
+
+  // ---- subárea: exata, variante singular/plural, início/conteúdo dentro da área ----
+  function acharSub(areaB,subB){
+    if(!subB)return null;
+    const eqS=equiv("subarea",subB);
+    const T=AUX.taxonomia||[];
+    const na=norm(areaB);
+    const naArea=t=>!na||norm(t.area)===na;
+    if(eqS){const c=T.filter(t=>norm(t.subarea)===norm(eqS)); if(c.length)return (c.find(naArea)||c[0]);}
+    let c=T.filter(t=>norm(t.subarea)===norm(subB));
+    if(c.length)return (c.find(naArea)||c[0]);
+    for(const v of variantes(subB)){
+      c=T.filter(t=>norm(t.subarea)===v);
+      if(c.length)return (c.find(naArea)||c[0]);
+    }
+    // dentro da área informada, aceita início ou conteúdo se for único
+    const doArea=T.filter(naArea);
+    c=doArea.filter(t=>norm(t.subarea).startsWith(norm(subB)));  if(c.length===1)return c[0];
+    c=doArea.filter(t=>norm(t.subarea).includes(norm(subB)));    if(c.length===1)return c[0];
+    return null;
+  }
   const idxSitLai=new Map(); (SEED.lai_situacoes||[]).forEach(s=>idxSitLai.set(norm(s),s));
 
   // ---- monta os processos ----
@@ -2112,22 +2198,18 @@ async function lerArquivo(file){
 
     // órgão
     const orgBruto=v(l,"orgao");
-    let org=idxOrg.get(norm(orgBruto))||null;
-    if(!org&&orgBruto){
-      const cand=(AUX.orgaos||[]).filter(o=>norm(o.sigla)===norm(orgBruto)
-        ||norm(o.nome).startsWith(norm(orgBruto))||norm(orgBruto).startsWith(norm(o.sigla)));
-      if(cand.length===1)org=`${cand[0].sigla} — ${cand[0].nome}`;
-    }
-    if(orgBruto && !org){org=orgBruto;avisos.push(`Linha ${nlin}: órgão "${orgBruto}" não está cadastrado — gravado como veio.`);}
+    let org=acharOrgao(orgBruto);
+    if(orgBruto && !org){org=orgBruto;avisos.push(`Linha ${nlin}: órgão "${orgBruto}" não está cadastrado — gravado como veio. Cadastre-o em Órgãos ou crie uma equivalência.`);}
 
     // área / subárea
     const areaB=v(l,"area"), subB=v(l,"subarea");
-    let area=idxArea.get(norm(areaB))||null;
+    const areaEq=equiv("area",areaB)||areaB;
+    let area=idxArea.get(norm(areaEq))||null;
     let sub=null;
-    const achouSub=idxSub.get(norm(areaB)+"|"+norm(subB))||idxSub.get(norm(subB));
-    if(achouSub){sub=achouSub.subarea; if(!area)area=achouSub.area;}
-    if(areaB&&!area){area=areaB;avisos.push(`Linha ${nlin}: área "${areaB}" fora da taxonomia.`);}
-    if(subB&&!sub){sub=subB;avisos.push(`Linha ${nlin}: subárea "${subB}" fora da taxonomia.`);}
+    const achouSub=acharSub(areaEq,subB);
+    if(achouSub){sub=achouSub.subarea; area=achouSub.area;}   // a área segue a subárea encontrada
+    if(areaB&&!area){area=areaEq;avisos.push(`Linha ${nlin}: área "${areaB}" fora da taxonomia.`);}
+    if(subB&&!sub){sub=subB;avisos.push(`Linha ${nlin}: subárea "${subB}" fora da taxonomia. Crie uma equivalência em Gestão do Sistema.`);}
 
     // ODS: usa o da planilha; se vazio, o da subárea
     let ods=[]; const odsB=v(l,"ods").replace(/[^0-9;,\s]/g,"");
@@ -2187,6 +2269,19 @@ async function lerArquivo(file){
       <div class="imp-stat"><div class="n" style="color:#9a6a00">${jaTem.size}</div><div class="l">JÁ EXISTENTES</div></div>
       <div class="imp-stat"><div class="n" style="color:#c02a1f">${erros.length}</div><div class="l">LINHAS IGNORADAS</div></div>
     </div>
+    <div class="cgm-box" style="border-color:#cfe3ff">
+      <h4>Mês de referência</h4>
+      <p class="muted small" style="margin:0 0 10px">
+        ${col.data?`A planilha tem coluna de data: ela tem prioridade. O mês abaixo preenche apenas as linhas sem data.`
+          :`A planilha não tem coluna de data. ${mesArquivo?`Detectado <b>pelo nome do arquivo</b>.`:`Não foi possível detectar pelo nome do arquivo — informe abaixo.`}`}
+      </p>
+      <div class="frow">
+        <div><label class="f">Mês/ano das manifestações</label>
+          <input type="month" id="imp_mes" value="${esc(mesArquivo||'')}"></div>
+        <div><label class="f">Dia a considerar<span class="hint">Como só o mês é conhecido, o sistema usa este dia.</span></label>
+          <select id="imp_dia"><option value="1">Dia 1º (início do mês)</option><option value="15">Dia 15 (meio do mês)</option><option value="U">Último dia do mês</option></select></div>
+      </div>
+    </div>
     ${(erros.length||avisos.length)?`<div class="imp-log">
       ${erros.slice(0,60).map(x=>`<div class="er">${esc(x)}</div>`).join("")}
       ${avisos.slice(0,60).map(x=>`<div class="wa">${esc(x)}</div>`).join("")}
@@ -2200,7 +2295,19 @@ async function lerArquivo(file){
   if(!novos.length){ btn.classList.add("hidden"); toast("Nada a importar."); return; }
   btn.classList.remove("hidden");
   btn.textContent=`Importar ${novos.length} processo(s)`;
-  btn.onclick=()=>executarImport(novos);
+  btn.onclick=()=>{
+    const mes=$("#imp_mes").value, dia=$("#imp_dia").value;
+    if(!mes && novos.some(g=>!g.data_entrada)){
+      toast("Informe o mês/ano de referência das manifestações.");$("#imp_mes").focus();return;
+    }
+    if(mes){
+      const [a,m]=mes.split("-").map(Number);
+      const d = dia==="U" ? new Date(Date.UTC(a,m,0)).getUTCDate() : Number(dia);
+      const iso=`${a}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      novos.forEach(g=>{if(!g.data_entrada)g.data_entrada=iso;});
+    }
+    executarImport(novos);
+  };
 }
 
 async function executarImport(novos){
