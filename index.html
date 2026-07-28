@@ -450,7 +450,7 @@ async function loadAuxAntigo(){
     predios:"aux_predios", tipos_tratativa:"aux_tipos_tratativa",
     tipos_irregularidade:"aux_tipos_irregularidade", feriados:"aux_feriados",
     hipoteses_inabilit:"aux_hipoteses_inabilitacao", formas_recebimento:"aux_formas_recebimento",
-    equivalencias:"aux_equivalencias"
+    equivalencias:"aux_equivalencias", bairros:"aux_bairros"
   };
   // busca todas as tabelas EM PARALELO (antes era uma após a outra)
   const chaves=Object.keys(map);
@@ -480,6 +480,7 @@ function fallback(k){
   if(k==="feriados")return [];
   if(k==="formas_recebimento")return ["Presencial","Telefone","E-mail","Formulário eletrônico","WhatsApp","Fala.BR","Outros"];
   if(k==="equivalencias")return [];
+  if(k==="bairros")return [];
   if(k==="hipoteses_inabilit"){ // deriva da taxonomia oficial, se a tabela não existir
     return (AUX.taxonomia||SEED.taxonomia||[])
       .filter(t=>t.area==="Gestão de manifestações"&&/^Não habilitada/.test(t.subarea||""))
@@ -1913,6 +1914,7 @@ const AUXDEFS=[
   {key:"feriados",tbl:"aux_feriados",label:"Feriados (exceções)",cols:[["data","Data"],["nome","Nome"],["tipo","Tipo"]]},
   {key:"formas_recebimento",tbl:"aux_formas_recebimento",label:"Formas de Recebimento",cols:[["nome","Nome"]],simple:true},
   {key:"equivalencias",tbl:"aux_equivalencias",label:"Equivalências (importação)",cols:[["tipo","Tipo"],["de","Como vem na planilha"],["para","Valor oficial"]]},
+  {key:"bairros",tbl:"aux_bairros",label:"Bairros (coordenadas)",cols:[["nome","Bairro"],["latitude","Latitude"],["longitude","Longitude"]]},
   {key:"hipoteses_inabilit",tbl:"aux_hipoteses_inabilitacao",label:"Hipóteses de Inabilitação",cols:[["nome","Hipótese"],["fundamento","Fundamento"]]},
 ];
 let auxTab="taxonomia";
@@ -2166,24 +2168,36 @@ async function lerArquivo(file){
   }
 
   // ---- subárea: exata, variante singular/plural, início/conteúdo dentro da área ----
+  // ESTRITO: só aceita casamento inequívoco. Nunca "adivinha" a área.
   function acharSub(areaB,subB){
     if(!subB)return null;
-    const eqS=equiv("subarea",subB);
     const T=AUX.taxonomia||[];
-    const na=norm(areaB);
-    const naArea=t=>!na||norm(t.area)===na;
-    if(eqS){const c=T.filter(t=>norm(t.subarea)===norm(eqS)); if(c.length)return (c.find(naArea)||c[0]);}
-    let c=T.filter(t=>norm(t.subarea)===norm(subB));
-    if(c.length)return (c.find(naArea)||c[0]);
-    for(const v of variantes(subB)){
-      c=T.filter(t=>norm(t.subarea)===v);
-      if(c.length)return (c.find(naArea)||c[0]);
+    const nsub=norm(subB), narea=norm(areaB);
+    const areaValida = !!narea && T.some(t=>norm(t.area)===narea);
+    // quando a área da planilha é válida, a busca fica RESTRITA a ela
+    const pool = areaValida ? T.filter(t=>norm(t.area)===narea) : T;
+
+    // 1) equivalência cadastrada
+    const eqS=equiv("subarea",subB);
+    if(eqS){
+      let c=pool.filter(t=>norm(t.subarea)===norm(eqS));
+      if(c.length===1)return c[0];
+      if(!areaValida){c=T.filter(t=>norm(t.subarea)===norm(eqS)); if(c.length===1)return c[0];}
     }
-    // dentro da área informada, aceita início ou conteúdo se for único
-    const doArea=T.filter(naArea);
-    c=doArea.filter(t=>norm(t.subarea).startsWith(norm(subB)));  if(c.length===1)return c[0];
-    c=doArea.filter(t=>norm(t.subarea).includes(norm(subB)));    if(c.length===1)return c[0];
-    return null;
+    // 2) igual, dentro da área
+    let c=pool.filter(t=>norm(t.subarea)===nsub);
+    if(c.length===1)return c[0];
+    // 3) singular/plural, dentro da área
+    for(const v of variantes(subB)){
+      c=pool.filter(t=>norm(t.subarea)===v);
+      if(c.length===1)return c[0];
+    }
+    // 4) aproximado SOMENTE dentro de área válida e SOMENTE se for único
+    if(areaValida){
+      c=pool.filter(t=>norm(t.subarea).startsWith(nsub)); if(c.length===1)return c[0];
+      c=pool.filter(t=>norm(t.subarea).includes(nsub));   if(c.length===1)return c[0];
+    }
+    return null;   // na dúvida, NÃO casa: grava como veio e avisa
   }
   const idxSitLai=new Map(); (SEED.lai_situacoes||[]).forEach(s=>idxSitLai.set(norm(s),s));
 
@@ -2207,14 +2221,24 @@ async function lerArquivo(file){
     let area=idxArea.get(norm(areaEq))||null;
     let sub=null;
     const achouSub=acharSub(areaEq,subB);
-    if(achouSub){sub=achouSub.subarea; area=achouSub.area;}   // a área segue a subárea encontrada
-    if(areaB&&!area){area=areaEq;avisos.push(`Linha ${nlin}: área "${areaB}" fora da taxonomia.`);}
-    if(subB&&!sub){sub=subB;avisos.push(`Linha ${nlin}: subárea "${subB}" fora da taxonomia. Crie uma equivalência em Gestão do Sistema.`);}
+    if(achouSub){
+      sub=achouSub.subarea;
+      // a área da planilha PREVALECE; a da subárea só preenche quando faltava
+      if(!area){
+        area=achouSub.area;
+        if(areaB)avisos.push(`Linha ${nlin}: área "${areaB}" não existe na taxonomia — usada "${achouSub.area}", de onde vem a subárea "${subB}".`);
+      }
+      else if(norm(area)!==norm(achouSub.area)){
+        avisos.push(`Linha ${nlin}: subárea "${subB}" pertence a "${achouSub.area}", mas a planilha indica "${areaB}" — mantida a área da planilha.`);
+      }
+    }
+    if(areaB&&!area){area=areaEq;avisos.push(`Linha ${nlin}: área "${areaB}" fora da taxonomia — gravada como veio.`);}
+    if(subB&&!sub){sub=subB;avisos.push(`Linha ${nlin}: subárea "${subB}" não encontrada em "${areaB||'(sem área)'}" — gravada como veio.`);}
 
     // ODS: usa o da planilha; se vazio, o da subárea
     let ods=[]; const odsB=v(l,"ods").replace(/[^0-9;,\s]/g,"");
     odsB.split(/[;,\s]+/).filter(Boolean).forEach(n=>{const x=parseInt(n,10);if(x>=1&&x<=17)ods.push(x);});
-    if(!ods.length&&achouSub&&achouSub.ods)ods=[Number(achouSub.ods)];
+    if(!ods.length&&achouSub&&achouSub.ods&&(!area||norm(area)===norm(achouSub.area)))ods=[Number(achouSub.ods)];
 
     // prédio / endereço
     const localB=v(l,"local");
@@ -2287,6 +2311,9 @@ async function lerArquivo(file){
       ${avisos.slice(0,60).map(x=>`<div class="wa">${esc(x)}</div>`).join("")}
       ${(erros.length+avisos.length>120)?`<div class="muted">… e mais ${erros.length+avisos.length-120} ocorrência(s).</div>`:""}
     </div>`:`<p class="muted small">Nenhuma inconsistência encontrada.</p>`}
+    <label class="check" style="margin-top:8px"><input type="checkbox" id="imp_geo" checked>
+      <span>Localizar no mapa<span class="hint">Busca as coordenadas de cada bairro e prédio uma única vez e guarda para as próximas cargas. Os processos passam a aparecer no mapa de calor do painel.</span></span></label>
+    <p class="muted small" style="margin:4px 0 0">Todos os processos entram na unidade <b>CG-OGM</b>.</p>
     <div class="barra hidden" id="imp_barra"><i></i></div>
     <p class="muted small hidden" id="imp_prog"></p>
     <p class="muted small" style="margin-top:12px">Os avisos não impedem a importação: os valores fora das listas são gravados como vieram e podem ser ajustados depois.</p>`;
@@ -2310,12 +2337,77 @@ async function lerArquivo(file){
   };
 }
 
+// toda carga entra sob a Ouvidoria-Geral do Município
+const UNIDADE_CARGA="CG-OGM — CG-Ouvidoria Geral do Município";
+
+// resolve as coordenadas de bairros e prédios, reaproveitando o que já foi descoberto
+async function resolverCoordenadas(novos,onProgresso){
+  const cacheB=new Map((AUX.bairros||[]).filter(b=>b.latitude).map(b=>[norm(b.nome),b]));
+  const cacheP=new Map((AUX.predios||[]).filter(p=>p.latitude).map(p=>[norm(p.nome),p]));
+
+  // aplica o que já está em cache e levanta o que falta
+  const faltamB=new Set(), faltamP=new Map();
+  novos.forEach(g=>{
+    const p=g.predio?cacheP.get(norm(g.predio)):null;
+    if(p){g.latitude=p.latitude;g.longitude=p.longitude;return;}
+    const b=g.bairro?cacheB.get(norm(g.bairro)):null;
+    if(b){g.latitude=b.latitude;g.longitude=b.longitude;return;}
+    if(g.predio){const pr=(AUX.predios||[]).find(x=>norm(x.nome)===norm(g.predio));
+      if(pr&&pr.endereco)faltamP.set(g.predio,pr.endereco);}
+    if(g.bairro)faltamB.add(g.bairro);
+  });
+
+  const alvos=[...[...faltamP.entries()].map(([nome,end])=>({t:"predio",nome,q:end})),
+               ...[...faltamB].map(nome=>({t:"bairro",nome,q:nome}))];
+  if(!alvos.length)return {novos:0,total:0};
+
+  let feitos=0;
+  for(const a of alvos){
+    onProgresso&&onProgresso(feitos,alvos.length,a.nome);
+    try{
+      const q=[a.q,"Londrina - PR, Brasil"].join(", ");
+      const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q="+encodeURIComponent(q));
+      const j=await r.json();
+      if(j&&j.length){
+        const la=+(+j[0].lat).toFixed(6), lo=+(+j[0].lon).toFixed(6);
+        if(a.t==="bairro"){
+          cacheB.set(norm(a.nome),{latitude:la,longitude:lo});
+          await sb.from("aux_bairros").upsert({nome:a.nome,latitude:la,longitude:lo},{onConflict:"nome"});
+        }else{
+          cacheP.set(norm(a.nome),{latitude:la,longitude:lo});
+          await sb.from("aux_predios").update({latitude:la,longitude:lo}).eq("nome",a.nome);
+        }
+      }
+    }catch(e){}
+    feitos++;
+    await new Promise(r=>setTimeout(r,1100));   // respeita o limite do serviço gratuito
+  }
+  // reaplica agora com o cache completo
+  novos.forEach(g=>{
+    if(g.latitude)return;
+    const p=g.predio?cacheP.get(norm(g.predio)):null;
+    if(p){g.latitude=p.latitude;g.longitude=p.longitude;return;}
+    const b=g.bairro?cacheB.get(norm(g.bairro)):null;
+    if(b){g.latitude=b.latitude;g.longitude=b.longitude;}
+  });
+  return {novos:feitos,total:alvos.length};
+}
+
 async function executarImport(novos){
   const btn=$("#confirmar"); btn.disabled=true; btn.textContent="Importando…";
   const barra=$("#imp_barra"), prog=$("#imp_prog");
   barra.classList.remove("hidden"); prog.classList.remove("hidden");
   const lote="planilha "+new Date().toLocaleString('pt-BR');
   let feitos=0, falhas=0;
+
+  // 1) coordenadas (para o mapa de calor)
+  if($("#imp_geo").checked){
+    prog.textContent="Localizando bairros e prédios…";
+    await resolverCoordenadas(novos,(f,t,nome)=>{
+      barra.querySelector("i").style.width=Math.round(f/t*30)+"%";
+      prog.textContent=`Localizando ${f+1} de ${t}: ${nome}…`;
+    });
+  }
   const passo=50;
 
   for(let i=0;i<novos.length;i+=passo){
@@ -2332,6 +2424,8 @@ async function executarImport(novos){
         link_sei:g.link_sei,
         lai_situacao:g.lai_situacao, lai_motivo:g.lai_motivo,
         resposta_lai:g.resposta_lai, motivo_parcial_lai:g.motivo_parcial_lai,
+        latitude:g.latitude??null, longitude:g.longitude??null,
+        unidade_resp:UNIDADE_CARGA,
         status:"Concluído", origem_carga:lote};
     });
     const {data,error}=await sb.from("processos").insert(regs).select("id,numero_sei");
@@ -2347,7 +2441,7 @@ async function executarImport(novos){
       if(manifs.length)await sb.from("manifestacoes").insert(manifs);
       feitos+=bloco.length;
     }
-    const pc=Math.round(Math.min(100,(i+passo)/novos.length*100));
+    const pc=30+Math.round(Math.min(70,(i+passo)/novos.length*70));
     barra.querySelector("i").style.width=pc+"%";
     prog.textContent=`${Math.min(i+passo,novos.length)} de ${novos.length} processo(s)…`;
   }
