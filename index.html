@@ -173,6 +173,20 @@
   .aviso-novo.show{display:block}
   .conflito{background:#fff4e5;border:1px solid #f0c890;color:#8a5200;border-radius:8px;
     padding:10px 12px;font-size:12.5px;margin-bottom:12px}
+  .imp-drop{border:2px dashed #b9cdf0;border-radius:14px;padding:34px 20px;text-align:center;background:#f7faff;cursor:pointer}
+  .imp-drop:hover{background:#eef5ff;border-color:var(--azul)}
+  .imp-drop b{color:var(--azul2);font-size:15px}
+  .imp-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0}
+  .imp-stat{background:#fff;border:1px solid var(--linha);border-radius:10px;padding:10px 12px;text-align:center}
+  .imp-stat .n{font-size:22px;font-weight:800;line-height:1.1}
+  .imp-stat .l{font-size:11px;color:var(--muted);font-weight:600;margin-top:2px}
+  .imp-log{max-height:210px;overflow:auto;border:1px solid var(--linha);border-radius:10px;background:#fff}
+  .imp-log div{padding:7px 11px;border-bottom:1px solid #f0f3fa;font-size:12.5px}
+  .imp-log div:last-child{border-bottom:0}
+  .imp-log .er{background:#fdf0ee;color:#b02a1f}
+  .imp-log .wa{background:#fff8ea;color:#8a5200}
+  .barra{height:10px;background:#e8eefc;border-radius:6px;overflow:hidden;margin:10px 0}
+  .barra i{display:block;height:100%;background:var(--azul);width:0;transition:width .2s}
   .codigo{font-family:ui-monospace,Consolas,monospace;font-size:16px;font-weight:800;color:var(--azul2);
     background:#e5edff;padding:8px 14px;border-radius:8px;display:inline-block;letter-spacing:.5px}
 </style>
@@ -232,6 +246,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 /* ================================================================
    CONFIGURAÇÃO — cole a URL e a chave anônima do seu projeto Supabase
@@ -434,7 +449,7 @@ async function loadAuxAntigo(){
     tipos_demanda:"aux_tipos_demanda", tipos_documento:"aux_tipos_documento", status:"aux_status",
     predios:"aux_predios", tipos_tratativa:"aux_tipos_tratativa",
     tipos_irregularidade:"aux_tipos_irregularidade", feriados:"aux_feriados",
-    hipoteses_inabilit:"aux_hipoteses_inabilitacao"
+    hipoteses_inabilit:"aux_hipoteses_inabilitacao", formas_recebimento:"aux_formas_recebimento"
   };
   // busca todas as tabelas EM PARALELO (antes era uma após a outra)
   const chaves=Object.keys(map);
@@ -443,7 +458,7 @@ async function loadAuxAntigo(){
   chaves.forEach((k,i)=>{
     const data=res[i]&&res[i].data;
     if(data && data.length){
-      if(k==="tipos_demanda"||k==="tipos_documento"||k==="status"||k==="tipos_tratativa"||k==="tipos_irregularidade") AUX[k]=data.map(r=>r.nome);
+      if(k==="tipos_demanda"||k==="tipos_documento"||k==="status"||k==="tipos_tratativa"||k==="tipos_irregularidade"||k==="formas_recebimento") AUX[k]=data.map(r=>r.nome);
       else AUX[k]=data;
     }else AUX[k]=fallback(k);
   });
@@ -462,6 +477,7 @@ function fallback(k){
   if(k==="tipos_tratativa")return SEED.tipos_tratativa||[];
   if(k==="tipos_irregularidade")return SEED.tipos_irregularidade||[];
   if(k==="feriados")return [];
+  if(k==="formas_recebimento")return ["Presencial","Telefone","E-mail","Formulário eletrônico","WhatsApp","Fala.BR","Outros"];
   if(k==="hipoteses_inabilit"){ // deriva da taxonomia oficial, se a tabela não existir
     return (AUX.taxonomia||SEED.taxonomia||[])
       .filter(t=>t.area==="Gestão de manifestações"&&/^Não habilitada/.test(t.subarea||""))
@@ -877,6 +893,12 @@ function formProcesso(p){
         </div>
         <div class="frow">
           <div><label class="f">Tipo de demanda</label><select id="tipo_demanda">${tdOpt}</select></div>
+          <div><label class="f">Forma de recebimento</label><select id="forma_recebimento">${
+            `<option value="">Selecione…</option>`+[...(AUX.formas_recebimento||[])].sort(byPt())
+              .map(f=>`<option ${f===p.forma_recebimento?'selected':''}>${esc(f)}</option>`).join("")
+          }</select></div>
+        </div>
+        <div class="frow one">
           <div><label class="f">Link permanente do SEI</label><input id="link_sei" value="${esc(p.link_sei||'')}"></div>
         </div>
       </fieldset>
@@ -1373,6 +1395,7 @@ function formProcesso(p){
       n_manifestacoes:Math.max(1,manifValidas.length),
       tipo_demanda:$("#tipo_demanda").value||null,
       link_sei:$("#link_sei").value.trim()||null,
+      forma_recebimento:$("#forma_recebimento").value||null,
       endereco:$("#endereco").value.trim()||null,
       bairro:$("#bairro").value.trim()||null,
       latitude:$("#latitude").value?Number($("#latitude").value):null,
@@ -1886,6 +1909,7 @@ const AUXDEFS=[
   {key:"tipos_tratativa",tbl:"aux_tipos_tratativa",label:"Tipos de Tratativa",cols:[["nome","Nome"]],simple:true},
   {key:"tipos_irregularidade",tbl:"aux_tipos_irregularidade",label:"Tipos de Irregularidade (CGM)",cols:[["nome","Nome"]],simple:true},
   {key:"feriados",tbl:"aux_feriados",label:"Feriados (exceções)",cols:[["data","Data"],["nome","Nome"],["tipo","Tipo"]]},
+  {key:"formas_recebimento",tbl:"aux_formas_recebimento",label:"Formas de Recebimento",cols:[["nome","Nome"]],simple:true},
   {key:"hipoteses_inabilit",tbl:"aux_hipoteses_inabilitacao",label:"Hipóteses de Inabilitação",cols:[["nome","Hipótese"],["fundamento","Fundamento"]]},
 ];
 let auxTab="taxonomia";
@@ -1893,6 +1917,7 @@ async function renderAuxiliares(){
   app.innerHTML=`<div class="card pad">
     <div class="toolbar">
       <h2 class="sec" style="margin-right:auto">Gestão do Sistema</h2>
+      <button class="btn primary" id="importar">⬆ Importar planilha</button>
       <button class="btn ghost" id="backup">⬇ Baixar backup</button>
       <button class="btn ghost" id="seed">Popular dados iniciais</button>
     </div>
@@ -1902,6 +1927,7 @@ async function renderAuxiliares(){
   $("#auxtabs").onclick=e=>{const b=e.target.closest("button[data-k]");if(!b)return;auxTab=b.dataset.k;renderAuxiliares();};
   $("#seed").onclick=popularSeed;
   $("#backup").onclick=baixarBackup;
+  $("#importar").onclick=formImportar;
   drawAuxTable();
 }
 async function drawAuxTable(){
@@ -1942,6 +1968,292 @@ function formAux(def,row){
     close();await loadAux();drawAuxTable();toast("Salvo.");
   };
 }
+/* =================== IMPORTAÇÃO DE PLANILHA =================== */
+// remove acentos e padroniza, para comparar textos da planilha com as listas
+function norm(s){return String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  .replace(/[ºª°]/g,"").replace(/[.]/g,"").replace(/\s+/g," ").trim().toLowerCase();}
+
+// colunas aceitas (aceita variações de acento/caixa)
+const COLS={
+  orgao:      ["orgao/entidade (sei)","orgao/entidade","orgao","orgao demandado","entidade"],
+  tipologia:  ["tipologia","tipo","tipo de demanda","tipo de manifestacao"],
+  sei:        ["processo sei","numero sei","n processo sei","sei","processo"],
+  forma:      ["forma de recebimento da manifestacao","forma de recebimento","canal","forma"],
+  local:      ["local","predio","equipamento"],
+  endereco:   ["endereco","logradouro"],
+  bairro:     ["bairro"],
+  area:       ["area"],
+  subarea:    ["subarea","sub area"],
+  ods:        ["n ods","no ods","numero ods","ods","n do ods","numero do ods"],
+  ods_nome:   ["objetivo de desenvolvimento sustentavel","objetivo"],
+  manifestacao:["manifestacao","descricao","relato","objeto"],
+  resposta_lai:["resposta lai","resposta"],
+  situacao_lai:["situacao lai","situacao"],
+  motivo_negativa:["motivo da negativa de acesso","motivo negativa","motivo da negativa"],
+  motivo_parcial:["motivo do atendimento parcial","motivo parcial","atendimento parcial"],
+  data:       ["data","data de entrada","data do protocolo","data de abertura","protocolo"],
+  link:       ["link","link sei","link permanente do sei","link permanente"]
+};
+function acharCol(cabecalhos,chave){
+  const alvos=COLS[chave]||[];
+  for(const c of cabecalhos){ if(alvos.includes(norm(c))) return c; }
+  for(const c of cabecalhos){ if(alvos.some(a=>norm(c).startsWith(a))) return c; }
+  return null;
+}
+// converte data do Excel (número serial) ou texto para AAAA-MM-DD
+function dataPlanilha(v){
+  if(v==null||v==="")return null;
+  if(typeof v==="number"){ // serial do Excel
+    const d=new Date(Date.UTC(1899,11,30+Math.floor(v)));
+    return d.toISOString().slice(0,10);
+  }
+  const s=String(v).trim();
+  let m=s.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+  if(m)return m[3]+"-"+m[2]+"-"+m[1];
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return m[0];
+  return null;
+}
+
+function formImportar(){
+  modalRoot.innerHTML=`<div class="overlay"><div class="modal" style="max-width:900px">
+    <div class="modal-head"><h3>Importar planilha</h3><button class="x" id="mx">×</button></div>
+    <div class="modal-body" id="imp_body">
+      <p class="lead">Carga em massa de processos e manifestações a partir de arquivo <b>.xlsx</b>, <b>.xls</b> ou <b>.csv</b>. Linhas com o mesmo <b>PROCESSO SEI</b> são agrupadas: viram um processo com várias manifestações.</p>
+      <div class="imp-drop" id="imp_drop">
+        <b>Clique aqui para escolher o arquivo</b>
+        <p class="muted small" style="margin:6px 0 0">ou arraste a planilha para esta área</p>
+        <input type="file" id="imp_file" accept=".xlsx,.xls,.csv" style="display:none">
+      </div>
+      <details style="margin-top:14px">
+        <summary class="muted small" style="cursor:pointer">Colunas reconhecidas</summary>
+        <p class="muted small" style="margin:8px 0 0">
+          ÓRGÃO/ENTIDADE (SEI) · TIPOLOGIA · PROCESSO SEI · FORMA DE RECEBIMENTO DA MANIFESTAÇÃO ·
+          LOCAL · ENDEREÇO · BAIRRO · ÁREA · SUBÁREA · Nº ODS · OBJETIVO DE DESENVOLVIMENTO SUSTENTÁVEL ·
+          MANIFESTAÇÃO · RESPOSTA LAI · SITUAÇÃO LAI · MOTIVO DA NEGATIVA DE ACESSO ·
+          MOTIVO DO ATENDIMENTO PARCIAL · DATA (opcional) · LINK SEI (opcional).<br>
+          A ordem não importa e acentos/maiúsculas são ignorados.
+        </p>
+      </details>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="cancel">Fechar</button>
+      <button class="btn primary hidden" id="confirmar">Importar</button>
+    </div>
+  </div></div>`;
+  const close=()=>modalRoot.innerHTML="";
+  $("#mx").onclick=close;$("#cancel").onclick=close;
+  const drop=$("#imp_drop"), inp=$("#imp_file");
+  drop.onclick=()=>inp.click();
+  drop.ondragover=e=>{e.preventDefault();drop.style.background="#eef5ff";};
+  drop.ondragleave=()=>{drop.style.background="";};
+  drop.ondrop=e=>{e.preventDefault();drop.style.background="";if(e.dataTransfer.files[0])lerArquivo(e.dataTransfer.files[0]);};
+  inp.onchange=()=>{if(inp.files[0])lerArquivo(inp.files[0]);};
+}
+
+async function lerArquivo(file){
+  const body=$("#imp_body");
+  body.innerHTML=`<div class="empty">Lendo <b>${esc(file.name)}</b>…</div>`;
+  if(typeof XLSX==="undefined"){
+    body.innerHTML=`<div class="conflito">Não foi possível carregar o leitor de planilhas. Verifique a conexão e recarregue a página.</div>`;return;
+  }
+  let linhas=[];
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:"array",cellDates:false});
+    const aba=wb.Sheets[wb.SheetNames[0]];
+    linhas=XLSX.utils.sheet_to_json(aba,{defval:"",raw:true});
+  }catch(e){
+    body.innerHTML=`<div class="conflito">Erro ao ler o arquivo: ${esc(e.message)}</div>`;return;
+  }
+  if(!linhas.length){body.innerHTML=`<div class="conflito">A planilha está vazia ou não tem cabeçalho na primeira linha.</div>`;return;}
+
+  const cab=Object.keys(linhas[0]);
+  const col={}; Object.keys(COLS).forEach(k=>col[k]=acharCol(cab,k));
+  if(!col.sei){
+    body.innerHTML=`<div class="conflito"><b>Coluna PROCESSO SEI não encontrada.</b><br>
+      Cabeçalhos lidos: ${esc(cab.join(" · "))}</div>`;return;
+  }
+
+  // ---- índices para conferência ----
+  const idxOrg=new Map(); (AUX.orgaos||[]).forEach(o=>{
+    idxOrg.set(norm(o.sigla),`${o.sigla} — ${o.nome}`);
+    idxOrg.set(norm(o.nome),`${o.sigla} — ${o.nome}`);
+    idxOrg.set(norm(o.sigla+" "+o.nome),`${o.sigla} — ${o.nome}`);
+  });
+  const idxArea=new Map(); const idxSub=new Map();
+  (AUX.taxonomia||[]).forEach(t=>{
+    idxArea.set(norm(t.area),t.area);
+    idxSub.set(norm(t.area)+"|"+norm(t.subarea),t);
+    if(!idxSub.has(norm(t.subarea)))idxSub.set(norm(t.subarea),t);
+  });
+  const listaPred=(AUX.predios||[]);
+  const idxPredio=new Map(); listaPred.forEach(p=>idxPredio.set(norm(p.nome),p));
+  // aceita "UBS Centro" quando o cadastro é "UBS Centro - Clair Pavan" (e vice-versa)
+  function acharPredio(txt){
+    const n=norm(txt); if(!n)return null;
+    if(idxPredio.has(n))return idxPredio.get(n);
+    let c=listaPred.filter(p=>norm(p.nome).startsWith(n)||n.startsWith(norm(p.nome)));
+    if(c.length===1)return c[0];
+    c=listaPred.filter(p=>norm(p.nome).includes(n)||n.includes(norm(p.nome)));
+    return c.length===1?c[0]:null;
+  }
+  const idxTipo=new Map(); (AUX.tipos_demanda||[]).forEach(t=>idxTipo.set(norm(t),t));
+  const idxSitLai=new Map(); (SEED.lai_situacoes||[]).forEach(s=>idxSitLai.set(norm(s),s));
+
+  // ---- monta os processos ----
+  const grupos=new Map(); const avisos=[]; const erros=[];
+  const v=(l,k)=>col[k]?String(l[col[k]]==null?"":l[col[k]]).trim():"";
+
+  linhas.forEach((l,i)=>{
+    const nlin=i+2; // +1 cabeçalho, +1 base 1
+    const sei=v(l,"sei");
+    if(!sei){erros.push(`Linha ${nlin}: sem PROCESSO SEI — ignorada.`);return;}
+
+    // órgão
+    const orgBruto=v(l,"orgao");
+    let org=idxOrg.get(norm(orgBruto))||null;
+    if(!org&&orgBruto){
+      const cand=(AUX.orgaos||[]).filter(o=>norm(o.sigla)===norm(orgBruto)
+        ||norm(o.nome).startsWith(norm(orgBruto))||norm(orgBruto).startsWith(norm(o.sigla)));
+      if(cand.length===1)org=`${cand[0].sigla} — ${cand[0].nome}`;
+    }
+    if(orgBruto && !org){org=orgBruto;avisos.push(`Linha ${nlin}: órgão "${orgBruto}" não está cadastrado — gravado como veio.`);}
+
+    // área / subárea
+    const areaB=v(l,"area"), subB=v(l,"subarea");
+    let area=idxArea.get(norm(areaB))||null;
+    let sub=null;
+    const achouSub=idxSub.get(norm(areaB)+"|"+norm(subB))||idxSub.get(norm(subB));
+    if(achouSub){sub=achouSub.subarea; if(!area)area=achouSub.area;}
+    if(areaB&&!area){area=areaB;avisos.push(`Linha ${nlin}: área "${areaB}" fora da taxonomia.`);}
+    if(subB&&!sub){sub=subB;avisos.push(`Linha ${nlin}: subárea "${subB}" fora da taxonomia.`);}
+
+    // ODS: usa o da planilha; se vazio, o da subárea
+    let ods=[]; const odsB=v(l,"ods").replace(/[^0-9;,\s]/g,"");
+    odsB.split(/[;,\s]+/).filter(Boolean).forEach(n=>{const x=parseInt(n,10);if(x>=1&&x<=17)ods.push(x);});
+    if(!ods.length&&achouSub&&achouSub.ods)ods=[Number(achouSub.ods)];
+
+    // prédio / endereço
+    const localB=v(l,"local");
+    const pred=acharPredio(localB);
+    const endereco=v(l,"endereco")||(pred?pred.endereco:"")||"";
+    const bairro=v(l,"bairro")||(pred?pred.bairro:"")||"";
+
+    const tipo=idxTipo.get(norm(v(l,"tipologia")))||v(l,"tipologia")||null;
+    const sitLai=idxSitLai.get(norm(v(l,"situacao_lai")))||v(l,"situacao_lai")||null;
+
+    if(!grupos.has(sei)){
+      grupos.set(sei,{
+        numero_sei:sei,
+        data_entrada:dataPlanilha(col.data?l[col.data]:null),
+        tipo_demanda:tipo,
+        forma_recebimento:v(l,"forma")||null,
+        local_manifestacao:pred?null:(localB||null),
+        predio:pred?pred.nome:null,
+        endereco:endereco||null, bairro:bairro||null,
+        area, subarea:sub, ods,
+        link_sei:v(l,"link")||null,
+        lai_situacao:sitLai, lai_motivo:v(l,"motivo_negativa")||null,
+        motivo_parcial_lai:v(l,"motivo_parcial")||null,
+        resposta_lai:v(l,"resposta_lai")||null,
+        observacoes:null,
+        manifs:[], linhas:[nlin]
+      });
+    }else{ grupos.get(sei).linhas.push(nlin); }
+
+    const g=grupos.get(sei);
+    g.manifs.push({orgao:org||null,descricao:v(l,"manifestacao")||null,
+      area:area||null,subarea:sub||null,ods:ods.slice()});
+  });
+
+  // ---- já existem no banco? ----
+  const seis=[...grupos.keys()];
+  const jaTem=new Set();
+  for(let i=0;i<seis.length;i+=200){
+    const {data}=await sb.from("processos").select("numero_sei").in("numero_sei",seis.slice(i,i+200));
+    (data||[]).forEach(x=>jaTem.add(x.numero_sei));
+  }
+  jaTem.forEach(s=>avisos.push(`Processo ${s} já existe no sistema — será ignorado.`));
+  const novos=seis.filter(s=>!jaTem.has(s)).map(s=>grupos.get(s));
+  const totManif=novos.reduce((a,g)=>a+g.manifs.length,0);
+
+  // ---- tela de conferência ----
+  body.innerHTML=`
+    <p class="lead">Arquivo <b>${esc(file.name)}</b> · ${linhas.length} linha(s) lida(s)</p>
+    <div class="imp-stats">
+      <div class="imp-stat"><div class="n" style="color:#1a8f33">${novos.length}</div><div class="l">PROCESSOS A CRIAR</div></div>
+      <div class="imp-stat"><div class="n" style="color:#1a49c7">${totManif}</div><div class="l">MANIFESTAÇÕES</div></div>
+      <div class="imp-stat"><div class="n" style="color:#9a6a00">${jaTem.size}</div><div class="l">JÁ EXISTENTES</div></div>
+      <div class="imp-stat"><div class="n" style="color:#c02a1f">${erros.length}</div><div class="l">LINHAS IGNORADAS</div></div>
+    </div>
+    ${(erros.length||avisos.length)?`<div class="imp-log">
+      ${erros.slice(0,60).map(x=>`<div class="er">${esc(x)}</div>`).join("")}
+      ${avisos.slice(0,60).map(x=>`<div class="wa">${esc(x)}</div>`).join("")}
+      ${(erros.length+avisos.length>120)?`<div class="muted">… e mais ${erros.length+avisos.length-120} ocorrência(s).</div>`:""}
+    </div>`:`<p class="muted small">Nenhuma inconsistência encontrada.</p>`}
+    <div class="barra hidden" id="imp_barra"><i></i></div>
+    <p class="muted small hidden" id="imp_prog"></p>
+    <p class="muted small" style="margin-top:12px">Os avisos não impedem a importação: os valores fora das listas são gravados como vieram e podem ser ajustados depois.</p>`;
+
+  const btn=$("#confirmar");
+  if(!novos.length){ btn.classList.add("hidden"); toast("Nada a importar."); return; }
+  btn.classList.remove("hidden");
+  btn.textContent=`Importar ${novos.length} processo(s)`;
+  btn.onclick=()=>executarImport(novos);
+}
+
+async function executarImport(novos){
+  const btn=$("#confirmar"); btn.disabled=true; btn.textContent="Importando…";
+  const barra=$("#imp_barra"), prog=$("#imp_prog");
+  barra.classList.remove("hidden"); prog.classList.remove("hidden");
+  const lote="planilha "+new Date().toLocaleString('pt-BR');
+  let feitos=0, falhas=0;
+  const passo=50;
+
+  for(let i=0;i<novos.length;i+=passo){
+    const bloco=novos.slice(i,i+passo);
+    const regs=bloco.map(g=>{
+      const orgs=[...new Set(g.manifs.map(m=>m.orgao).filter(Boolean))];
+      return {numero_sei:g.numero_sei, data_entrada:g.data_entrada,
+        tipo_demanda:g.tipo_demanda, forma_recebimento:g.forma_recebimento,
+        orgaos:orgs, orgao_demandado:orgs.join("; ")||null,
+        n_manifestacoes:Math.max(1,g.manifs.length),
+        predio:g.predio, local_manifestacao:g.local_manifestacao,
+        endereco:g.endereco, bairro:g.bairro,
+        area:g.area, subarea:g.subarea, ods:g.ods,
+        link_sei:g.link_sei,
+        lai_situacao:g.lai_situacao, lai_motivo:g.lai_motivo,
+        resposta_lai:g.resposta_lai, motivo_parcial_lai:g.motivo_parcial_lai,
+        status:"Concluído", origem_carga:lote};
+    });
+    const {data,error}=await sb.from("processos").insert(regs).select("id,numero_sei");
+    if(error){falhas+=bloco.length;}
+    else{
+      const mapa=new Map((data||[]).map(x=>[x.numero_sei,x.id]));
+      const manifs=[];
+      bloco.forEach(g=>{
+        const pid=mapa.get(g.numero_sei); if(!pid)return;
+        g.manifs.forEach((m,k)=>manifs.push({processo_id:pid,sequencia:k+1,
+          orgao:m.orgao,descricao:m.descricao,area:m.area,subarea:m.subarea,ods:m.ods}));
+      });
+      if(manifs.length)await sb.from("manifestacoes").insert(manifs);
+      feitos+=bloco.length;
+    }
+    const pc=Math.round(Math.min(100,(i+passo)/novos.length*100));
+    barra.querySelector("i").style.width=pc+"%";
+    prog.textContent=`${Math.min(i+passo,novos.length)} de ${novos.length} processo(s)…`;
+  }
+
+  invalidarCache();
+  barra.querySelector("i").style.width="100%";
+  prog.innerHTML=`<b>Concluído.</b> ${feitos} processo(s) importado(s)${falhas?`, ${falhas} com falha`:""}.<br>
+    Lote: <code>${esc(lote)}</code> — guarde esta identificação caso precise desfazer a carga.`;
+  btn.textContent="Fechar"; btn.disabled=false;
+  btn.onclick=()=>{modalRoot.innerHTML="";go("processos");};
+  toast(`Importação concluída: ${feitos} processo(s).`);
+}
+
 async function baixarBackup(){
   const btn=$("#backup");btn.disabled=true;btn.textContent="Gerando…";
   const tabelas=["processos","recomendacoes","tratativas","observacoes",
