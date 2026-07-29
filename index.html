@@ -48,6 +48,8 @@
   /* kpis */
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:18px}
   .kpi{padding:16px 18px;position:relative;overflow:hidden}
+  .kpi-click{cursor:pointer;transition:transform .1s,box-shadow .1s}
+  .kpi-click:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(10,40,120,.14)}
   .kpi .n{font-size:30px;font-weight:800;line-height:1}
   .kpi .l{font-size:12.5px;color:var(--muted);font-weight:600;margin-top:6px}
   .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--azul)}
@@ -585,6 +587,8 @@ function statsLocal(p){
     externos:p.filter(x=>x.tramitacao_ext).length,
     lai:p.filter(x=>String(x.tipo_demanda||"").includes("LAI")).length,
     vencidos:p.filter(x=>x.prazo_interno&&x.prazo_interno<today()&&!conc(x)).length,
+    fora20:p.filter(x=>!conc(x)&&x.data_entrada&&x.data_entrada<addDays(today(),-20)).length,
+    fora30:p.filter(x=>!conc(x)&&x.data_entrada&&x.data_entrada<addDays(today(),-30)).length,
     manifestacoes:p.reduce((s,x)=>s+Math.max(1,orgaosDe(x).length),0),
     net_emit:net.length, net_acat:net.filter(x=>x.net_acatada).length, geo_total:geo.length,
     com_prazo:cp.length, dentro_prazo:cp.filter(noPrazo).length,
@@ -694,7 +698,8 @@ async function renderPainel(){
       <div class="card kpi"><div class="n">${S.concluidos||0}</div><div class="l">Concluídos</div><div class="sub2">${pct(S.concluidos||0)}% do total</div></div>
       <div class="card kpi r"><div class="n">${S.vencidos||0}</div><div class="l">Vencidos em aberto</div><div class="sub2">${pct(S.vencidos||0)}% do total · clique em Processos para filtrar</div></div>
       <div class="card kpi y"><div class="n">${tmed==null?'—':tmed}</div><div class="l">Tempo médio de conclusão</div><div class="sub2">em dias</div></div>
-      <div class="card kpi o"><div class="n">${taxa==null?'—':taxa+'%'}</div><div class="l">Cumprimento de prazo</div><div class="sub2">${S.dentro_prazo||0}/${S.com_prazo||0} dentro do prazo</div></div>
+      <div class="card kpi o kpi-click" id="kpi_fora20"><div class="n">${S.fora20||0}</div><div class="l">Fora do prazo — 20 dias</div><div class="sub2">em aberto há mais de 20 dias · clique para filtrar</div></div>
+      <div class="card kpi r kpi-click" id="kpi_fora30"><div class="n">${S.fora30||0}</div><div class="l">Fora do prazo — 30 dias</div><div class="sub2">em aberto há mais de 30 dias (20+10) · clique para filtrar</div></div>
     </div>
 
     <div class="sec-title">Análise temporal</div>
@@ -716,7 +721,6 @@ async function renderPainel(){
     <div class="charts">
       <div class="card chart-card"><h3>Carga por unidade responsável</h3><p class="cap">Processos por unidade da Ouvidoria</p><div class="chart-box"><canvas id="ch_unidade"></canvas></div></div>
       <div class="card chart-card"><h3>Carga por servidor</h3><p class="cap">Top 10 servidores designados</p><div class="chart-box tallbox"><canvas id="ch_serv"></canvas></div></div>
-      <div class="card chart-card"><h3>Cumprimento de prazo</h3><p class="cap">No prazo × fora do prazo — inclui concluídos entregues após o vencimento</p><div class="chart-box"><canvas id="ch_prazo"></canvas></div></div>
       <div class="card chart-card"><h3>Tramitação</h3><p class="cap">Na OGM × em órgão externo</p><div class="chart-box"><canvas id="ch_tram"></canvas></div></div>
     </div>
 
@@ -757,6 +761,9 @@ async function renderPainel(){
     </div>`;
 
   $("#refresh").onclick=()=>{invalidarCache();renderPainel();};
+  const irParaFiltro=(v)=>{filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:v,de:"",ate:""};PG.page=0;go("processos");};
+  if($("#kpi_fora20"))$("#kpi_fora20").onclick=()=>irParaFiltro("fora20");
+  if($("#kpi_fora30"))$("#kpi_fora30").onclick=()=>irParaFiltro("fora30");
 
   PAINEL_CHARTS.forEach(c=>{try{c.destroy();}catch(e){}});PAINEL_CHARTS=[];
   if(PAINEL_MAP){try{PAINEL_MAP.remove();}catch(e){}PAINEL_MAP=null;}
@@ -776,7 +783,6 @@ async function renderPainel(){
   mkChart('ch_orgao','bar',dOrgao.map(x=>String(x[0]).split(' — ')[0]),dOrgao.map(x=>x[1]),{horizontal:true,color:'#12A5B4'});
   mkChart('ch_unidade','bar',dUnidade.map(x=>String(x[0]).split(' — ')[0]),dUnidade.map(x=>x[1]),{color:'#EDA704'});
   mkChart('ch_serv','bar',dServidor.map(x=>x[0]),dServidor.map(x=>x[1]),{horizontal:true,color:'#F26522'});
-  mkChart('ch_prazo','doughnut',['No prazo','Fora do prazo'],[S.dentro_prazo||0,(S.com_prazo||0)-(S.dentro_prazo||0)]);
   mkChart('ch_tram','doughnut',['Na OGM','Em órgão externo'],[total-(S.externos||0),S.externos||0]);
   mkChart('ch_ods','bar',odsPares.map(x=>'ODS '+x[0]),odsPares.map(x=>x[1]),{colors:odsPares.map(x=>ODS_COLORS[x[0]]||'#5a6480')});
   mkChart('ch_net','bar',['Emitidas','Acatadas','Não acatadas'],
@@ -836,7 +842,7 @@ async function renderProcessos(){
         <select id="fext"><option value="">Tramitação (todas)</option><option value="sim">Em tramitação externa</option><option value="nao">Dentro da OGM</option></select>
         <select id="fserv"><option value="">Todos os servidores</option>${servOpts}</select>
         <select id="forgao"><option value="">Todos os órgãos</option>${orgOpts}</select>
-        <select id="fprazo"><option value="">Prazo (todos)</option><option value="venc">⚠ Vencidos (em aberto)</option><option value="fora">Concluídos fora do prazo</option><option value="dia">Vence em ≤ 3 dias</option><option value="ok">No prazo</option></select>
+        <select id="fprazo"><option value="">Prazo (todos)</option><option value="fora20">Fora do prazo — 20 dias</option><option value="fora30">Fora do prazo — 30 dias (20+10)</option><option value="venc">⚠ Vencidos (art. 13, em aberto)</option><option value="fora">Concluídos fora do prazo</option><option value="dia">Vence em ≤ 3 dias</option><option value="ok">No prazo</option></select>
       </div>
       <div class="toolbar">
         <label class="muted small" style="display:flex;align-items:center;gap:6px">Entrada de
@@ -892,6 +898,10 @@ function queryProcessos(sel,opts){
   if(filtro.orgao)q=q.ilike("orgao_demandado","%"+filtro.orgao+"%");
   if(filtro.de)q=q.gte("data_entrada",filtro.de);
   if(filtro.ate)q=q.lte("data_entrada",filtro.ate);
+  if(filtro.prazo==="fora20"||filtro.prazo==="fora30"){
+    const dias=filtro.prazo==="fora20"?20:30;
+    q=q.lt("data_entrada",addDays(today(),-dias)).not("status","in",'("Concluído","Arquivado")');
+  }
   if(PRAZO_SRC==="vw_processos"){
     if(filtro.prazo==="venc")      q=q.eq("situacao_prazo","vencido");
     else if(filtro.prazo==="fora") q=q.eq("situacao_prazo","concluido_fora_prazo");
