@@ -470,7 +470,7 @@ async function loadAux(){
 }
 async function loadAuxAntigo(){
   const map = {
-    taxonomia:"aux_taxonomia", ods:"aux_ods", lai_motivos:"aux_lai_motivos",
+    taxonomia:"aux_taxonomia", ods:"aux_ods", lai_motivos:"aux_lai_motivos", lai_situacoes:"aux_lai_situacoes",
     servidores:"aux_servidores", unidades:"aux_unidades", orgaos:"aux_orgaos",
     tipos_demanda:"aux_tipos_demanda", tipos_documento:"aux_tipos_documento", status:"aux_status",
     predios:"aux_predios", tipos_tratativa:"aux_tipos_tratativa",
@@ -485,7 +485,7 @@ async function loadAuxAntigo(){
   chaves.forEach((k,i)=>{
     const data=res[i]&&res[i].data;
     if(data && data.length){
-      if(k==="tipos_demanda"||k==="tipos_documento"||k==="status"||k==="tipos_tratativa"||k==="tipos_irregularidade"||k==="formas_recebimento") AUX[k]=data.map(r=>r.nome);
+      if(k==="tipos_demanda"||k==="tipos_documento"||k==="status"||k==="tipos_tratativa"||k==="tipos_irregularidade"||k==="formas_recebimento"||k==="lai_situacoes") AUX[k]=data.map(r=>r.nome);
       else AUX[k]=data;
     }else AUX[k]=fallback(k);
   });
@@ -494,6 +494,7 @@ function fallback(k){
   if(k==="taxonomia")return SEED.taxonomia;
   if(k==="ods")return SEED.ods;
   if(k==="lai_motivos")return SEED.lai_motivos;
+  if(k==="lai_situacoes")return SEED.lai_situacoes||[];
   if(k==="servidores")return SEED.servidores;
   if(k==="unidades")return SEED.unidades;
   if(k==="orgaos")return SEED.orgaos;
@@ -1164,6 +1165,9 @@ function formProcesso(p){
     .map(o=>{const v=`${o.sigla} — ${o.nome}`;return `<option value="${esc(v)}">${esc(v)}</option>`;}).join("");
   const stListOpts=[...AUX.status].sort(byPt()).map(s=>`<option>${esc(s)}</option>`).join("");
   const areaListOpts=[...new Set(AUX.taxonomia.map(t=>t.area))].sort(byPt()).map(a=>`<option>${esc(a)}</option>`).join("");
+  const tipoManifOpts=[...(AUX.tipos_demanda||[])].sort(byPt()).map(t=>`<option>${esc(t)}</option>`).join("");
+  const laiSitManifOpts=[...(AUX.lai_situacoes||SEED.lai_situacoes||[])].sort(byPt()).map(s=>`<option>${esc(s)}</option>`).join("");
+  const ehLaiTipo=(t)=>/lai/i.test(t||"");
 
   function pintaManifs(){
     const box=$("#manif_list");
@@ -1180,9 +1184,11 @@ function formProcesso(p){
               <button type="button" class="btn danger sm" data-del="${i}">Remover</button>
             </span>
           </div>
-          <div class="frow">
+          <div class="frow three">
             <div><label class="f">Órgão demandado<span class="hint">Pode repetir o mesmo órgão de outra manifestação.</span></label>
               <select data-c="orgao" data-i="${i}"><option value="">Selecione…</option>${orgListOpts}</select></div>
+            <div><label class="f">Tipo<span class="hint">Escolha "Pedido LAI" para exibir os campos de Acesso à Informação.</span></label>
+              <select data-c="tipo" data-i="${i}"><option value="">Selecione…</option>${tipoManifOpts}</select></div>
             <div><label class="f">Situação</label>
               <select data-c="status" data-i="${i}"><option value="">Mesma do processo</option>${stListOpts}</select></div>
           </div>
@@ -1195,6 +1201,13 @@ function formProcesso(p){
               <select data-c="subarea" data-i="${i}"><option value="">Selecione a área primeiro</option></select></div>
           </div>
           <div class="desc-sub" data-desc="${i}"></div>
+          <div class="lai-manif ${ehLaiTipo(m.tipo)?'':'hidden'}" data-lai="${i}" style="background:#f2f8ff;border:1px solid #cfe3ff;border-radius:10px;padding:12px;margin:6px 0 10px">
+            <label class="f" style="color:#0a5">Acesso à Informação (LAI)</label>
+            <div class="frow one"><div><label class="f">Situação LAI</label>
+              <select data-c="lai_situacao" data-i="${i}"><option value="">Selecione…</option>${laiSitManifOpts}</select></div></div>
+            <div class="frow one"><div><label class="f">Resposta LAI<span class="hint">Texto da resposta ao pedido de acesso à informação.</span></label>
+              <textarea data-c="resposta_lai" data-i="${i}" class="tall" placeholder="Descreva a resposta fornecida ao pedido LAI">${esc(m.resposta_lai||'')}</textarea></div></div>
+          </div>
           <label class="f">ODS vinculado(s)<span class="hint">A subárea marca o ODS correspondente; clique para (des)marcar.</span></label>
           <div class="odsbox" data-odsbox="${i}">${
             (AUX.ods||[]).map(o=>`<span class="odsopt ${(m.ods||[]).map(Number).includes(o.numero)?'on':''}" data-ods="${o.numero}" data-i="${i}" title="${esc(o.descricao||'')}">${o.numero} · ${esc(o.nome)}</span>`).join("")
@@ -1205,6 +1218,8 @@ function formProcesso(p){
         const g=c=>box.querySelector(`[data-c="${c}"][data-i="${i}"]`);
         if(g("orgao"))g("orgao").value=m.orgao||"";
         if(g("status"))g("status").value=m.status||"";
+        if(g("tipo"))g("tipo").value=m.tipo||"";
+        if(g("lai_situacao"))g("lai_situacao").value=m.lai_situacao||"";
         if(g("area")){g("area").value=m.area||"";}
         preencheSubarea(i,m.subarea||"");
         mostraDescSub(i);
@@ -1244,7 +1259,7 @@ function formProcesso(p){
     m.ods=[...new Set([...(m.ods||[]).map(Number),Number(t.ods)])];
   }
 
-  $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",descricao:"",status:"",area:"",subarea:"",ods:[],prazo:""});pintaManifs();};
+  $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",tipo:"",descricao:"",status:"",area:"",subarea:"",ods:[],lai_situacao:"",resposta_lai:""});pintaManifs();};
   $("#manif_list").addEventListener("click",e=>{
     const ods=e.target.closest(".odsopt");
     if(ods){
@@ -1271,14 +1286,19 @@ function formProcesso(p){
     MANIFS[i][c]=el.value;
     if(c==="area"){MANIFS[i].subarea="";preencheSubarea(i,"");mostraDescSub(i);}
     if(c==="subarea"){mostraDescSub(i);marcaOdsDaSubarea(i);}
+    if(c==="tipo"){
+      const box=$("#manif_list").querySelector(`[data-lai="${i}"]`);
+      if(box)box.classList.toggle("hidden",!ehLaiTipo(el.value));
+    }
   });
 
   // carrega as manifestações existentes; se não houver, deriva dos órgãos já cadastrados
   if(isEdit && p.id){
     sb.from("manifestacoes").select("*").eq("processo_id",p.id).order("sequencia")
       .then(({data})=>{
-        if(data&&data.length){MANIFS=data.map(m=>({id:m.id,orgao:m.orgao||"",descricao:m.descricao||"",
-          status:m.status||"",area:m.area||"",subarea:m.subarea||"",ods:(m.ods||[]).map(Number),prazo:m.prazo||""}));}
+        if(data&&data.length){MANIFS=data.map(m=>({id:m.id,orgao:m.orgao||"",tipo:m.tipo||"",descricao:m.descricao||"",
+          status:m.status||"",area:m.area||"",subarea:m.subarea||"",ods:(m.ods||[]).map(Number),
+          lai_situacao:m.lai_situacao||"",resposta_lai:m.resposta_lai||""}));}
         else{const antigos=(p.orgaos&&p.orgaos.length)?p.orgaos:String(p.orgao_demandado||"").split("; ").filter(Boolean);
           MANIFS=antigos.map(o=>({orgao:o,descricao:"",status:"",
             area:p.area||"",subarea:p.subarea||"",ods:(p.ods||[]).map(Number),prazo:""}));}
@@ -1569,6 +1589,8 @@ function formProcesso(p){
         if(manifValidas.length){
           const linhas=manifValidas.map((m,i)=>({processo_id:procId,sequencia:i+1,
             orgao:m.orgao||null,descricao:m.descricao||null,status:m.status||null,
+            tipo:m.tipo||null,lai_situacao:(ehLaiTipo(m.tipo)?(m.lai_situacao||null):null),
+            resposta_lai:(ehLaiTipo(m.tipo)?(m.resposta_lai||null):null),
             area:m.area||null,subarea:m.subarea||null,ods:(m.ods||[]).map(Number)}));
           const {error:em}=await sb.from("manifestacoes").insert(linhas);
           if(em)toast("Processo salvo, mas as manifestações falharam: "+em.message);
@@ -1950,16 +1972,40 @@ function formTratativa(processoId,aoSalvar){
           <span>Registrar como documento emitido pela OGM<span class="hint">Preenche o tipo, o número e a data de saída no cadastro do processo.</span></span></label>
         <div class="frow one"><div><label class="f">Atualizar a situação do processo</label><select id="t_status">${stOpt}</select></div></div>
       </fieldset>
+
+      <fieldset id="t_lai_box" class="hidden" style="margin-top:6px;background:#f2f8ff;border-color:#cfe3ff"><legend>Resposta LAI</legend>
+        <p class="muted small" style="margin:0 0 10px">A descrição acima será gravada como <b>Resposta LAI</b> na manifestação escolhida.</p>
+        <div class="frow">
+          <div><label class="f">Manifestação LAI</label><select id="t_lai_manif"><option value="">Carregando…</option></select></div>
+          <div><label class="f">Situação LAI</label><select id="t_lai_sit"><option value="">Selecione…</option>${
+            [...(AUX.lai_situacoes||SEED.lai_situacoes||[])].sort(byPt()).map(s=>`<option>${esc(s)}</option>`).join("")
+          }</select></div>
+        </div>
+      </fieldset>
     </div>
     <div class="modal-foot"><button class="btn ghost" id="cancel">Cancelar</button><button class="btn primary" id="save">Salvar</button></div>
   </div></div>`;
   const close=()=>modalRoot.innerHTML="";
   $("#mx").onclick=close;$("#cancel").onclick=close;
 
+  const ehRespLai=(t)=>/resposta\s*lai/i.test(t||"");
   // se o tipo da tratativa não for um documento da OGM, desmarca o registro automático
-  $("#ttipo").addEventListener("change",()=>{
+  $("#ttipo").addEventListener("change",async ()=>{
     const t=$("#ttipo").value;
     $("#t_doc").checked = !!t && (AUX.tipos_documento||[]).includes(t);
+    const box=$("#t_lai_box");
+    if(ehRespLai(t)){
+      box.classList.remove("hidden");
+      const sel=$("#t_lai_manif");
+      const {data}=await sb.from("manifestacoes").select("id,orgao,tipo,lai_situacao").eq("processo_id",processoId).order("sequencia");
+      const manifs=(data||[]);
+      const lai=manifs.filter(m=>/lai/i.test(m.tipo||""));
+      const lista=(lai.length?lai:manifs);
+      if(!lista.length){sel.innerHTML=`<option value="">Nenhuma manifestação neste processo</option>`;}
+      else{sel.innerHTML=lista.map(m=>`<option value="${m.id}">${esc(m.orgao||'(sem órgão)')}${m.tipo?' · '+esc(m.tipo):''}</option>`).join("");}
+    }else{
+      box.classList.add("hidden");
+    }
   });
 
   $("#save").onclick=async()=>{
@@ -1988,6 +2034,20 @@ function formTratativa(processoId,aoSalvar){
         toast("Tratativa registrada e processo atualizado.");
       }
     }else{ toast("Tratativa registrada."); }
+
+    // ---- Resposta LAI: grava na manifestação escolhida ----
+    if(ehRespLai(tipo)){
+      const mid=$("#t_lai_manif").value;
+      if(mid){
+        const laiUpd={resposta_lai:texto};
+        if($("#t_lai_sit").value)laiUpd.lai_situacao=$("#t_lai_sit").value;
+        const {error:el}=await sb.from("manifestacoes").update(laiUpd).eq("id",mid);
+        if(el)toast("Tratativa salva, mas a Resposta LAI não foi gravada: "+el.message);
+        else toast("Resposta LAI registrada na manifestação.");
+      }else{
+        toast("Tratativa salva, mas nenhuma manifestação LAI foi escolhida.");
+      }
+    }
     invalidarCache();   // painel e lista de processos passam a refletir a mudança
     close();
     if(aoSalvar)aoSalvar(); else renderRecomendacoes();
@@ -2032,6 +2092,7 @@ const AUXDEFS=[
   {key:"taxonomia",tbl:"aux_taxonomia",label:"Taxonomia",cols:[["area","Área"],["subarea","Subárea"],["descricao","Descrição"],["ods","ODS"]]},
   {key:"ods",tbl:"aux_ods",label:"ODS",cols:[["numero","Nº"],["nome","Objetivo"],["descricao","Descrição"]]},
   {key:"lai_motivos",tbl:"aux_lai_motivos",label:"Motivos LAI",cols:[["situacao","Situação"],["motivo","Motivo"],["descricao","Descrição"]]},
+  {key:"lai_situacoes",tbl:"aux_lai_situacoes",label:"Situações LAI",cols:[["nome","Situação"]],simple:true},
   {key:"servidores",tbl:"aux_servidores",label:"Servidores",cols:[["nome","Nome"],["unidade","Unidade"]]},
   {key:"unidades",tbl:"aux_unidades",label:"Unidades",cols:[["sigla","Sigla"],["nome","Nome"]]},
   {key:"orgaos",tbl:"aux_orgaos",label:"Órgãos",cols:[["sigla","Sigla"],["nome","Nome"]]},
@@ -2400,6 +2461,10 @@ async function lerArquivo(file){
 
     const g=grupos.get(sei);
     g.manifs.push({orgao:org||null,descricao:v(l,"manifestacao")||null,
+      tipo:tipo||null,
+      lai_situacao:sitLai||null,
+      resposta_lai:v(l,"resposta_lai")||null,
+      lai_motivo:v(l,"motivo_negativa")||null,
       area:area||null,subarea:sub||null,ods:ods.slice()});
   });
 
@@ -2566,7 +2631,9 @@ async function executarImport(novos){
       bloco.forEach(g=>{
         const pid=mapa.get(g.numero_sei); if(!pid)return;
         g.manifs.forEach((m,k)=>manifs.push({processo_id:pid,sequencia:k+1,
-          orgao:m.orgao,descricao:m.descricao,area:m.area,subarea:m.subarea,ods:m.ods}));
+          orgao:m.orgao,descricao:m.descricao,tipo:m.tipo,lai_situacao:m.lai_situacao,
+          resposta_lai:m.resposta_lai,lai_motivo:m.lai_motivo,
+          area:m.area,subarea:m.subarea,ods:m.ods}));
       });
       if(manifs.length)await sb.from("manifestacoes").insert(manifs);
       feitos+=bloco.length;
