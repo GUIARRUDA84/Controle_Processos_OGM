@@ -171,6 +171,10 @@
     background:var(--azul);color:#fff;border-radius:22px;padding:9px 18px;font-size:13px;font-weight:700;
     box-shadow:0 6px 20px rgba(10,40,120,.3);cursor:pointer;display:none;border:0}
   .aviso-novo.show{display:block}
+  .aviso-prazo{position:fixed;top:96px;right:20px;z-index:59;background:#E23B2E;color:#fff;border:0;
+    border-radius:22px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;display:none;
+    box-shadow:0 6px 20px rgba(180,30,20,.32)}
+  .aviso-prazo.show{display:block}
   .conflito{background:#fff4e5;border:1px solid #f0c890;color:#8a5200;border-radius:8px;
     padding:10px 12px;font-size:12.5px;margin-bottom:12px}
   .imp-drop{border:2px dashed #b9cdf0;border-radius:14px;padding:34px 20px;text-align:center;background:#f7faff;cursor:pointer}
@@ -239,6 +243,7 @@
 <main id="app"></main>
 <div id="modal-root"></div>
 <button id="aviso-novo" class="aviso-novo"></button>
+<button id="aviso-prazo" class="aviso-prazo"></button>
 <div id="toast" class="toast"></div>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
@@ -391,6 +396,8 @@ async function init(){
   bindNav();
   ligarTempoReal();
   go("painel");
+  checarPrazos();
+  setInterval(checarPrazos, 300000); // reavalia a cada 5 min
 }
 // avisa quando outra pessoa cadastrar ou alterar um processo
 let DESATUALIZADO=false;
@@ -411,9 +418,26 @@ function ligarTempoReal(){
       .subscribe();
   }catch(e){}
 }
+async function checarPrazos(){
+  const bt=$("#aviso-prazo");if(!bt)return;
+  try{
+    const {count}=await sb.from("processos").select("*",{count:"exact",head:true})
+      .lt("prazo_interno",today()).not("status","in",'("Concluído","Arquivado")');
+    const n=count||0;
+    if(n>0){
+      bt.textContent=`⚠ ${n} processo(s) com prazo vencido`;
+      bt.classList.add("show");
+    }else{bt.classList.remove("show");}
+  }catch(e){}
+}
 function bindNav(){
   const b=$("#aviso-novo");
   if(b)b.onclick=()=>{limparAviso();go(view);};
+  const bp=$("#aviso-prazo");
+  if(bp)bp.onclick=()=>{ // abre a lista já filtrada pelos vencidos
+    filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:"venc",de:"",ate:""};
+    PG.page=0; go("processos");
+  };
   $("#nav").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;go(b.dataset.v);});
 }
 function go(v){
@@ -739,7 +763,7 @@ async function renderPainel(){
 }
 
 /* ================= LISTA DE PROCESSOS ================= */
-let filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:""};
+let filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};
 let buscaTimer=null;
 
 async function renderProcessos(){
@@ -761,6 +785,14 @@ async function renderProcessos(){
         <select id="fext"><option value="">Tramitação (todas)</option><option value="sim">Em tramitação externa</option><option value="nao">Dentro da OGM</option></select>
         <select id="fserv"><option value="">Todos os servidores</option>${servOpts}</select>
         <select id="forgao"><option value="">Todos os órgãos</option>${orgOpts}</select>
+        <select id="fprazo"><option value="">Prazo (todos)</option><option value="venc">⚠ Somente vencidos</option><option value="dia">Vence em ≤ 3 dias</option><option value="ok">Dentro do prazo</option></select>
+      </div>
+      <div class="toolbar">
+        <label class="muted small" style="display:flex;align-items:center;gap:6px">Entrada de
+          <input type="date" id="fde" style="min-width:0"></label>
+        <label class="muted small" style="display:flex;align-items:center;gap:6px">até
+          <input type="date" id="fate" style="min-width:0"></label>
+        <button class="btn ghost sm" id="flimpar">Limpar filtros</button>
       </div>
       <div class="tblwrap">
         <table>
@@ -782,7 +814,9 @@ async function renderProcessos(){
   const bind=(id,campo)=>{const el=$(id);el.value=filtro[campo];
     el.onchange=e=>{filtro[campo]=e.target.value;PG.page=0;fetchRows();};};
   bind("#fstatus","status");bind("#farea","area");bind("#fext","ext");
-  bind("#fserv","servidor");bind("#forgao","orgao");
+  bind("#fserv","servidor");bind("#forgao","orgao");bind("#fprazo","prazo");
+  bind("#fde","de");bind("#fate","ate");
+  $("#flimpar").onclick=()=>{filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};PG.page=0;renderProcessos();};
   $("#pgprev").onclick=()=>{if(PG.page>0){PG.page--;fetchRows();}};
   $("#pgnext").onclick=()=>{if((PG.page+1)*PG.size<PG.total){PG.page++;fetchRows();}};
   await fetchRows();
@@ -797,6 +831,16 @@ function queryProcessos(sel,opts){
   if(filtro.ext==="sim")q=q.eq("tramitacao_ext",true);
   if(filtro.ext==="nao")q=q.eq("tramitacao_ext",false);
   if(filtro.orgao)q=q.ilike("orgao_demandado","%"+filtro.orgao+"%");
+  if(filtro.de)q=q.gte("data_entrada",filtro.de);
+  if(filtro.ate)q=q.lte("data_entrada",filtro.ate);
+  if(filtro.prazo==="venc"){
+    q=q.lt("prazo_interno",today()).not("status","in","(\"Concluído\",\"Arquivado\")");
+  }else if(filtro.prazo==="dia"){
+    q=q.gte("prazo_interno",today()).lte("prazo_interno",addDays(today(),3))
+       .not("status","in","(\"Concluído\",\"Arquivado\")");
+  }else if(filtro.prazo==="ok"){
+    q=q.gte("prazo_interno",today());
+  }
   const t=String(filtro.q||"").replace(/[%,()]/g," ").trim();
   if(t){q=q.or(["numero_sei","orgao_demandado","servidor","area","subarea","bairro","endereco"]
       .map(c=>`${c}.ilike.%${t}%`).join(","));}
@@ -866,7 +910,7 @@ function rowProc(p){
 function isLAI(tipo){return ["Pedido LAI","Recurso LAI","Reclamação LAI"].includes(tipo);}
 function formProcesso(p){
   p=p||{};
-  const isEdit=!!p.id;
+  let isEdit=!!p.id;
   const odsSel=new Set((p.ods||[]).map(Number));
   const areas=[...new Set(AUX.taxonomia.map(t=>t.area))].sort(byPt());
   const opt=(arr,val,ph)=>`<option value="">${ph}</option>`+arr.map(a=>`<option ${a===val?'selected':''}>${esc(a)}</option>`).join("");
@@ -906,6 +950,29 @@ function formProcesso(p){
         </div>
       </fieldset>
 
+      <fieldset><legend>Atribuição do processo</legend>
+        <div class="frow">
+          <div><label class="f">Servidor designado</label><select id="servidor">${servOpt}</select></div>
+          <div><label class="f">Unidade responsável</label><select id="unidade_resp">${uniOpt}</select></div>
+        </div>
+        <div class="frow">
+          <div><label class="f">Prazo de resposta<span class="hint">Calculado conforme o art. 13. Pode ser ajustado manualmente se houver decisão em contrário.</span></label>
+            <div style="display:flex;gap:8px">
+              <input type="date" id="prazo_interno" value="${esc(defPrazo)}">
+              <button type="button" class="btn ghost sm" id="recalc" title="Recalcular pelo art. 13">↻</button>
+            </div></div>
+          <div style="display:flex;align-items:flex-end"><label class="check"><input type="checkbox" id="prorrogado" ${defProrrog?'checked':''}>
+            <span>Prorrogação (+10 dias)<span class="hint" style="font-weight:500">A contagem reinicia no dia subsequente ao vencimento original (inciso III).</span></span></label></div>
+        </div>
+        <div class="desc-sub show" id="memoria_prazo" style="margin-top:0"></div>
+        <label class="check"><input type="checkbox" id="tramitacao_ext" ${p.tramitacao_ext?'checked':''}>
+          <span>Tramitação externa — processo saiu da OGM<span class="hint" style="font-weight:500">Marque quando o processo sair da OGM (vai para outro órgão). Desmarque quando retornar.</span></span></label>
+        <div class="frow one" id="ultima_wrap" style="margin-top:12px">
+          <div><label class="f">Última unidade (saída)<span class="hint">Preenchida automaticamente com a unidade responsável ao marcar a caixa acima.</span></label>
+            <input id="ultima_unidade" value="${esc(p.ultima_unidade||'')}"></div>
+        </div>
+      </fieldset>
+
       <fieldset><legend>Manifestações do processo</legend>
         <p class="lead" style="margin:0 0 10px">Um processo pode conter várias manifestações. Use o desmembramento quando o mesmo relato precisar ser encaminhado a órgãos distintos — é possível repetir o conteúdo para outro órgão ou descrever uma manifestação nova.</p>
         <div id="manif_list"></div>
@@ -929,39 +996,6 @@ function formProcesso(p){
         </div>
         <input type="hidden" id="latitude" value="${esc(p.latitude??'')}">
         <input type="hidden" id="longitude" value="${esc(p.longitude??'')}">
-      </fieldset>
-
-      <fieldset><legend>Classificação temática</legend>
-        <div class="frow">
-          <div><label class="f">Área</label><select id="area">${opt(areas,p.area,'Sem área')}</select></div>
-          <div><label class="f">Subárea</label><select id="subarea"><option value="">Selecione uma área primeiro</option></select></div>
-        </div>
-        <div class="desc-sub" id="desc_sub"></div>
-        <label class="f">Objetivos de Desenvolvimento Sustentável (ODS)<span class="hint">A subárea marca o ODS correspondente; clique para (des)marcar. Pode escolher vários.</span></label>
-        <div class="odsbox" id="odsbox">${odsOpts}</div>
-      </fieldset>
-
-      <fieldset><legend>Atribuição interna</legend>
-        <div class="frow">
-          <div><label class="f">Servidor designado</label><select id="servidor">${servOpt}</select></div>
-          <div><label class="f">Unidade responsável</label><select id="unidade_resp">${uniOpt}</select></div>
-        </div>
-        <div class="frow">
-          <div><label class="f">Prazo de resposta<span class="hint">Calculado conforme o art. 13. Pode ser ajustado manualmente se houver decisão em contrário.</span></label>
-            <div style="display:flex;gap:8px">
-              <input type="date" id="prazo_interno" value="${esc(defPrazo)}">
-              <button type="button" class="btn ghost sm" id="recalc" title="Recalcular pelo art. 13">↻</button>
-            </div></div>
-          <div style="display:flex;align-items:flex-end"><label class="check"><input type="checkbox" id="prorrogado" ${defProrrog?'checked':''}>
-            <span>Prorrogação (+10 dias)<span class="hint" style="font-weight:500">A contagem reinicia no dia subsequente ao vencimento original (inciso III).</span></span></label></div>
-        </div>
-        <div class="desc-sub show" id="memoria_prazo" style="margin-top:0"></div>
-        <label class="check"><input type="checkbox" id="tramitacao_ext" ${p.tramitacao_ext?'checked':''}>
-          <span>Tramitação externa — processo saiu da OGM<span class="hint" style="font-weight:500">Marque quando o processo sair da OGM (vai para outro órgão). Desmarque quando retornar.</span></span></label>
-        <div class="frow one" id="ultima_wrap" style="margin-top:12px">
-          <div><label class="f">Última unidade (saída)<span class="hint">Preenchida automaticamente com a unidade responsável ao marcar a caixa acima.</span></label>
-            <input id="ultima_unidade" value="${esc(p.ultima_unidade||'')}"></div>
-        </div>
       </fieldset>
 
       <fieldset><legend>Documento emitido pela OGM</legend>
@@ -1004,6 +1038,7 @@ function formProcesso(p){
     <div class="modal-foot">
       ${isEdit?'<button class="btn danger" id="del">Excluir</button>':''}
       <button class="btn ghost" id="cancel">Cancelar</button>
+      <button class="btn ghost" id="save_keep">Salvar e continuar</button>
       <button class="btn primary" id="save">${isEdit?'Salvar alterações':'Cadastrar processo'}</button>
     </div>
   </div></div>`;
@@ -1011,28 +1046,9 @@ function formProcesso(p){
   const close=()=>{modalRoot.innerHTML="";};
   $("#mx").onclick=close;$("#cancel").onclick=close;
 
-  // Subárea dependente da área
-  function fillSub(){
-    const area=$("#area").value;
-    const subs=AUX.taxonomia.filter(t=>t.area===area);
-    $("#subarea").innerHTML=`<option value="">${area?'Selecione…':'Selecione uma área primeiro'}</option>`+
-      subs.map(s=>`<option ${s.subarea===p.subarea?'selected':''}>${esc(s.subarea)}</option>`).join("");
-  }
-  fillSub();
-  $("#area").onchange=()=>{fillSub();$("#desc_sub").classList.remove("show");};
-  function onSub(){
-    const sub=$("#subarea").value, area=$("#area").value;
-    const t=AUX.taxonomia.find(x=>x.area===area && x.subarea===sub);
-    const box=$("#desc_sub");
-    if(t){box.textContent=t.descricao||"";box.classList.toggle("show",!!t.descricao);
-      if(t.ods){const el=$(`.odsopt[data-ods="${t.ods}"]`);if(el)el.classList.add("on");}}
-    else box.classList.remove("show");
-  }
-  $("#subarea").onchange=onSub;
-  if(p.subarea)onSub();
+  // (Classificação temática do processo foi removida: a classificação
+  //  passou a ser feita por manifestação. Aqui não há mais #area/#subarea/#odsbox.)
 
-  // ODS toggle
-  $("#odsbox").addEventListener("click",e=>{const o=e.target.closest(".odsopt");if(o)o.classList.toggle("on");});
   // ---------- HISTÓRICO DE TRAMITAÇÃO (somente leitura) ----------
   async function pintaHistorico(){
     const box=$("#hist_tram");
@@ -1098,12 +1114,11 @@ function formProcesso(p){
           </div>
           <div class="frow one"><div><label class="f">Objeto da manifestação</label>
             <textarea data-c="descricao" data-i="${i}" placeholder="Descreva o que está sendo demandado deste órgão">${esc(m.descricao||'')}</textarea></div></div>
-          <div class="frow three">
+          <div class="frow">
             <div><label class="f">Área</label>
               <select data-c="area" data-i="${i}"><option value="">Selecione…</option>${areaListOpts}</select></div>
             <div><label class="f">Subárea</label>
               <select data-c="subarea" data-i="${i}"><option value="">Selecione a área primeiro</option></select></div>
-            <div><label class="f">Prazo</label><input type="date" data-c="prazo" data-i="${i}" value="${esc(m.prazo||'')}"></div>
           </div>
           <div class="desc-sub" data-desc="${i}"></div>
           <label class="f">ODS vinculado(s)<span class="hint">A subárea marca o ODS correspondente; clique para (des)marcar.</span></label>
@@ -1382,14 +1397,25 @@ function formProcesso(p){
     $("#geostatus").textContent="localizando…";await geocodificar();
   };
 
-  // Salvar
-  $("#save").onclick=async()=>{
+  // Salvar (fechar=true fecha o modal; fechar=false mantém aberto para continuar editando)
+  $("#save").onclick=()=>salvar(true);
+  $("#save_keep").onclick=()=>salvar(false);
+  async function salvar(fechar){
+    const btns=[$("#save"),$("#save_keep")];
     // se há endereço e ainda não há coordenadas, tenta localizar automaticamente
     if(($("#endereco").value.trim()||$("#bairro").value.trim()) && !$("#latitude").value){
       $("#save").textContent="Localizando endereço…";await geocodificar();
     }
     const manifValidas=MANIFS.filter(m=>(m.orgao||"").trim()||(m.descricao||"").trim());
     const orgaosSel=[...new Set(manifValidas.map(m=>m.orgao).filter(Boolean))];
+    // classificação do processo = da 1ª manifestação classificada (para lista/painel).
+    // Se estiver editando um processo antigo que já tinha classificação, ela é preservada.
+    const m1=manifValidas.find(m=>m.area||m.subarea)||{};
+    const classifProc={
+      area:(m1.area||p.area||null),
+      subarea:(m1.subarea||p.subarea||null),
+      ods:((m1.ods&&m1.ods.length)?m1.ods.map(Number):(p.ods||[]).map(Number))
+    };
     const rec={
       numero_sei:$("#numero_sei").value.trim()||null,
       data_entrada:$("#data_entrada").value||null,
@@ -1403,9 +1429,9 @@ function formProcesso(p){
       bairro:$("#bairro").value.trim()||null,
       latitude:$("#latitude").value?Number($("#latitude").value):null,
       longitude:$("#longitude").value?Number($("#longitude").value):null,
-      area:$("#area").value||null,
-      subarea:$("#subarea").value||null,
-      ods:[...document.querySelectorAll("#odsbox .odsopt.on")].map(o=>Number(o.dataset.ods)),
+      area:classifProc.area,
+      subarea:classifProc.subarea,
+      ods:classifProc.ods,
       servidor:$("#servidor").value||null,
       unidade_resp:$("#unidade_resp").value||null,
       prazo_interno:$("#prazo_interno").value||null,
@@ -1425,7 +1451,7 @@ function formProcesso(p){
       observacoes:$("#observacoes").value.trim()||null,
       updated_at:new Date().toISOString()
     };
-    $("#save").disabled=true;$("#save").textContent="Salvando…";
+    btns.forEach(b=>b.disabled=true);$("#save").textContent="Salvando…";
     let res;
     if(isEdit){
       // só grava se ninguém tiver alterado o processo depois que você o abriu
@@ -1436,7 +1462,8 @@ function formProcesso(p){
         // conflito: outra pessoa salvou antes
         const {data:atual}=await sb.from("processos")
           .select("servidor,status,updated_at").eq("id",p.id).single();
-        $("#save").disabled=false;$("#save").textContent="Salvar alterações";
+        btns.forEach(b=>b.disabled=false);
+        $("#save").textContent="Salvar alterações";$("#save_keep").textContent="Salvar e continuar";
         const quando=atual&&atual.updated_at?new Date(atual.updated_at).toLocaleString('pt-BR'):"há instantes";
         const aviso=document.createElement("div");
         aviso.className="conflito";
@@ -1455,7 +1482,8 @@ function formProcesso(p){
     if(res.error){
       const dup=String(res.error.message||"").includes("ux_proc_sei")||res.error.code==="23505";
       toast(dup?"Já existe um processo com este número SEI.":"Erro ao salvar: "+res.error.message);
-      $("#save").disabled=false;$("#save").textContent=isEdit?"Salvar alterações":"Cadastrar processo";return;
+      btns.forEach(b=>b.disabled=false);
+      $("#save").textContent=isEdit?"Salvar alterações":"Cadastrar processo";$("#save_keep").textContent="Salvar e continuar";return;
     }
     const procId=(res.data&&res.data.id)||p.id;
 
@@ -1467,8 +1495,7 @@ function formProcesso(p){
         if(manifValidas.length){
           const linhas=manifValidas.map((m,i)=>({processo_id:procId,sequencia:i+1,
             orgao:m.orgao||null,descricao:m.descricao||null,status:m.status||null,
-            area:m.area||null,subarea:m.subarea||null,ods:(m.ods||[]).map(Number),
-            prazo:m.prazo||null}));
+            area:m.area||null,subarea:m.subarea||null,ods:(m.ods||[]).map(Number)}));
           const {error:em}=await sb.from("manifestacoes").insert(linhas);
           if(em)toast("Processo salvo, mas as manifestações falharam: "+em.message);
         }
@@ -1481,17 +1508,46 @@ function formProcesso(p){
       tarefas.push(sb.from("processos").update({cgm_codigo:null}).eq("id",procId));
     }
     if(tarefas.length) await Promise.all(tarefas);
-    invalidarCache();
-    close();toast(isEdit?"Processo atualizado.":"Processo cadastrado.");
-    if(view==="painel")renderPainel();else fetchRows();
+    invalidarCache();checarPrazos();
+    const eraEdit=isEdit;
+
+    // passa a operar em modo edição sobre o registro recém-salvo
+    p.id=procId;
+    if(res.data&&res.data.updated_at)p.updated_at=res.data.updated_at;
+    else{const {data:u}=await sb.from("processos").select("updated_at").eq("id",procId).single();if(u)p.updated_at=u.updated_at;}
+    isEdit=true;
+
+    if(fechar){
+      close();toast(eraEdit?"Processo atualizado.":"Processo cadastrado.");
+      if(view==="painel")renderPainel();else fetchRows();
+      return;
+    }
+    // ---- Salvar e continuar: mantém o modal aberto ----
+    btns.forEach(b=>b.disabled=false);
+    $("#save").textContent="Salvar alterações";$("#save_keep").textContent="Salvar e continuar";
+    const hh=document.querySelector(".modal-head h3");if(hh)hh.textContent="Editar processo";
+    // garante o botão Excluir, caso tenha sido criado agora
+    if(!$("#del")){
+      const foot=document.querySelector(".modal-foot");
+      if(foot){const b=document.createElement("button");b.className="btn danger";b.id="del";b.textContent="Excluir";
+        foot.insertBefore(b,foot.firstChild);b.onclick=excluirProcesso;}
+    }
+    // recarrega o histórico de tramitação, agora que o processo existe
+    if(typeof pintaHistorico==="function"){
+      const hw=document.querySelector(".modal-body");
+      if(hw && !$("#hist_tram")){/* processo novo: histórico aparece ao reabrir */}
+      else pintaHistorico&&pintaHistorico();
+    }
+    toast(eraEdit?"Alterações salvas. Você pode continuar editando.":"Processo cadastrado. Você pode continuar editando.");
   };
 
-  if(isEdit){$("#del").onclick=async()=>{
+  async function excluirProcesso(){
     if(!confirm("Excluir este processo e suas recomendações/tratativas?"))return;
     const {error}=await sb.from("processos").delete().eq("id",p.id);
     if(error){toast("Erro: "+error.message);return;}
-    invalidarCache();close();toast("Processo excluído.");fetchRows();
-  };}
+    invalidarCache();checarPrazos();close();toast("Processo excluído.");fetchRows();
+  }
+  if($("#del"))$("#del").onclick=excluirProcesso;
 }
 
 /* ============ JUÍZO DE ADMISSIBILIDADE — INTEGRAÇÃO CGM ============ */
