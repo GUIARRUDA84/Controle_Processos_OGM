@@ -602,6 +602,29 @@ function statsLocal(p){
   };
 }
 
+// fallback do painel por manifestação: usado só quando a função painel_areas()
+// ainda não existe no banco. Lê as manifestações em páginas e conta no navegador.
+async function agregaManifLocal(){
+  const area={}, sub={}, ods={}; let total=0, from=0; const passo=1000;
+  for(let i=0;i<60;i++){ // teto de 60 mil, por segurança
+    const {data,error}=await sb.from("manifestacoes")
+      .select("area,subarea,ods").range(from,from+passo-1);
+    if(error||!data||!data.length)break;
+    data.forEach(m=>{
+      total++;
+      const a=(m.area&&m.area.trim())?m.area:"(sem área)"; area[a]=(area[a]||0)+1;
+      if(m.subarea&&m.subarea.trim())sub[m.subarea]=(sub[m.subarea]||0)+1;
+      (m.ods||[]).forEach(o=>{const n=Number(o);if(n>=1&&n<=17)ods[n]=(ods[n]||0)+1;});
+    });
+    if(data.length<passo)break;
+    from+=passo;
+  }
+  const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n||10);
+  return {total,
+    area:top(area), subarea:top(sub),
+    ods:Object.entries(ods).map(([k,v])=>[Number(k),v]).sort((a,b)=>a[0]-b[0])};
+}
+
 async function renderPainel(){
   app.innerHTML=`<div class="empty">Carregando painel…</div>`;
   let S=null;
@@ -614,11 +637,27 @@ async function renderPainel(){
     }
     CACHE.painel=S;CACHE.painelAt=Date.now();
   }
-  // Manifestações (tabela própria) — soma real, incluindo desmembramentos
+  // Manifestações (tabela própria): total + distribuições por manifestação.
+  // Área, subárea e ODS passam a contar CADA manifestação — um processo
+  // desmembrado em áreas diferentes é contado em cada uma delas.
+  S.subarea = S.subarea || [];
   try{
+    const {data:ma,error:em}=await sb.rpc('painel_areas');
+    if(!em && ma){
+      if(ma.total_manif) S.manifestacoes=ma.total_manif;
+      if(ma.area && ma.area.length)       S.area=ma.area;
+      if(ma.subarea && ma.subarea.length) S.subarea=ma.subarea;
+      if(ma.ods && ma.ods.length)         S.ods=ma.ods;
+    }else{
+      // fallback sem a função: agrega no navegador a partir das manifestações
+      const ag=await agregaManifLocal();
+      if(ag){S.manifestacoes=ag.total; if(ag.area.length)S.area=ag.area;
+        if(ag.subarea.length)S.subarea=ag.subarea; if(ag.ods.length)S.ods=ag.ods;}
+    }
+  }catch(e){
     const {count}=await sb.from("manifestacoes").select("*",{count:"exact",head:true});
     if(count!=null && count>0) S.manifestacoes=count;
-  }catch(e){}
+  }
 
   // Integração CGM — quadro gerencial da admissibilidade
   let CGM={total:0,adm:0,inadm:0,valor:0,prio:[],tipo:[]};
@@ -642,7 +681,8 @@ async function renderPainel(){
   const rotulos=(S.mensal||[]).map(x=>{const[y,mo]=String(x[0]).split('-');return mo+'/'+String(y).slice(2);});
   const entradasMes=(S.mensal||[]).map(x=>x[1]), conclMes=(S.mensal||[]).map(x=>x[2]);
   const dStatus=S.status||[],dTipo=S.tipo||[],dArea=S.area||[],dOrgao=S.orgao||[],
-        dUnidade=S.unidade||[],dServidor=S.servidor||[],dBairro=S.bairro||[],odsPares=S.ods||[];
+        dUnidade=S.unidade||[],dServidor=S.servidor||[],dBairro=S.bairro||[],odsPares=S.ods||[],
+        dSubarea=S.subarea||[];
 
   app.innerHTML=`
     <div class="toolbar"><span class="muted small" style="margin-left:auto">
@@ -667,7 +707,8 @@ async function renderPainel(){
     <div class="charts">
       <div class="card chart-card"><h3>Por situação</h3><p class="cap">Estágio atual dos processos</p><div class="chart-box"><canvas id="ch_status"></canvas></div></div>
       <div class="card chart-card"><h3>Por tipo de demanda</h3><p class="cap">Natureza das manifestações</p><div class="chart-box"><canvas id="ch_tipo"></canvas></div></div>
-      <div class="card chart-card"><h3>Por área temática</h3><p class="cap">Top 10 áreas da taxonomia</p><div class="chart-box tallbox"><canvas id="ch_area"></canvas></div></div>
+      <div class="card chart-card"><h3>Por área temática</h3><p class="cap">Top 10 áreas — contadas por manifestação</p><div class="chart-box tallbox"><canvas id="ch_area"></canvas></div></div>
+      <div class="card chart-card"><h3>Por subárea temática</h3><p class="cap">Top 10 subáreas — contadas por manifestação</p><div class="chart-box tallbox"><canvas id="ch_subarea"></canvas></div></div>
       <div class="card chart-card"><h3>Por órgão demandado</h3><p class="cap">Top 8 órgãos</p><div class="chart-box tallbox"><canvas id="ch_orgao"></canvas></div></div>
     </div>
 
@@ -682,7 +723,7 @@ async function renderPainel(){
     <div class="sec-title">Análise estratégica</div>
     <div class="charts">
       <div class="card chart-card" style="grid-column:1 / -1">
-        <h3>Processos por ODS</h3><p class="cap">Alinhamento das demandas aos Objetivos de Desenvolvimento Sustentável da Agenda 2030 (cores oficiais)</p>
+        <h3>Manifestações por ODS</h3><p class="cap">Alinhamento das manifestações aos Objetivos de Desenvolvimento Sustentável da Agenda 2030 (contado por manifestação, cores oficiais)</p>
         <div class="chart-box"><canvas id="ch_ods"></canvas></div>
         <div class="ods-tiles">${odsPares.map(x=>{const o=AUX.ods.find(y=>y.numero===Number(x[0]))||{};return `<div class="ods-tile" title="${esc(o.descricao||'')}"><span class="sq" style="background:${ODS_COLORS[x[0]]||'#5a6480'}">${x[0]}</span><span><b>${esc(o.nome||('ODS '+x[0]))}</b><br>${x[1]} processo(s)</span></div>`;}).join('')}</div>
       </div>
@@ -731,6 +772,7 @@ async function renderPainel(){
   mkChart('ch_status','doughnut',dStatus.map(x=>x[0]),dStatus.map(x=>x[1]));
   mkChart('ch_tipo','bar',dTipo.map(x=>x[0]),dTipo.map(x=>x[1]),{color:'#7A5CF0'});
   mkChart('ch_area','bar',dArea.map(x=>x[0]),dArea.map(x=>x[1]),{horizontal:true,color:'#0056EF'});
+  mkChart('ch_subarea','bar',dSubarea.map(x=>x[0]),dSubarea.map(x=>x[1]),{horizontal:true,color:'#12A5B4'});
   mkChart('ch_orgao','bar',dOrgao.map(x=>String(x[0]).split(' — ')[0]),dOrgao.map(x=>x[1]),{horizontal:true,color:'#12A5B4'});
   mkChart('ch_unidade','bar',dUnidade.map(x=>String(x[0]).split(' — ')[0]),dUnidade.map(x=>x[1]),{color:'#EDA704'});
   mkChart('ch_serv','bar',dServidor.map(x=>x[0]),dServidor.map(x=>x[1]),{horizontal:true,color:'#F26522'});
