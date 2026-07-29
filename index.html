@@ -692,7 +692,7 @@ async function renderPainel(){
       <div class="card kpi b"><div class="n">${S.manifestacoes||0}</div><div class="l">Manifestações</div><div class="sub2">contadas por órgão demandado</div></div>
       <div class="card kpi g"><div class="n">${S.abertos||0}</div><div class="l">Em andamento</div><div class="sub2">idade média ${idadeMed==null?'—':idadeMed+' dias'}</div></div>
       <div class="card kpi"><div class="n">${S.concluidos||0}</div><div class="l">Concluídos</div><div class="sub2">${pct(S.concluidos||0)}% do total</div></div>
-      <div class="card kpi r"><div class="n">${S.vencidos||0}</div><div class="l">Com prazo vencido</div><div class="sub2">${pct(S.vencidos||0)}% do total</div></div>
+      <div class="card kpi r"><div class="n">${S.vencidos||0}</div><div class="l">Vencidos em aberto</div><div class="sub2">${pct(S.vencidos||0)}% do total · clique em Processos para filtrar</div></div>
       <div class="card kpi y"><div class="n">${tmed==null?'—':tmed}</div><div class="l">Tempo médio de conclusão</div><div class="sub2">em dias</div></div>
       <div class="card kpi o"><div class="n">${taxa==null?'—':taxa+'%'}</div><div class="l">Cumprimento de prazo</div><div class="sub2">${S.dentro_prazo||0}/${S.com_prazo||0} dentro do prazo</div></div>
     </div>
@@ -716,7 +716,7 @@ async function renderPainel(){
     <div class="charts">
       <div class="card chart-card"><h3>Carga por unidade responsável</h3><p class="cap">Processos por unidade da Ouvidoria</p><div class="chart-box"><canvas id="ch_unidade"></canvas></div></div>
       <div class="card chart-card"><h3>Carga por servidor</h3><p class="cap">Top 10 servidores designados</p><div class="chart-box tallbox"><canvas id="ch_serv"></canvas></div></div>
-      <div class="card chart-card"><h3>Cumprimento de prazo</h3><p class="cap">Dentro do prazo × vencidos (dos que têm prazo)</p><div class="chart-box"><canvas id="ch_prazo"></canvas></div></div>
+      <div class="card chart-card"><h3>Cumprimento de prazo</h3><p class="cap">No prazo × fora do prazo — inclui concluídos entregues após o vencimento</p><div class="chart-box"><canvas id="ch_prazo"></canvas></div></div>
       <div class="card chart-card"><h3>Tramitação</h3><p class="cap">Na OGM × em órgão externo</p><div class="chart-box"><canvas id="ch_tram"></canvas></div></div>
     </div>
 
@@ -776,7 +776,7 @@ async function renderPainel(){
   mkChart('ch_orgao','bar',dOrgao.map(x=>String(x[0]).split(' — ')[0]),dOrgao.map(x=>x[1]),{horizontal:true,color:'#12A5B4'});
   mkChart('ch_unidade','bar',dUnidade.map(x=>String(x[0]).split(' — ')[0]),dUnidade.map(x=>x[1]),{color:'#EDA704'});
   mkChart('ch_serv','bar',dServidor.map(x=>x[0]),dServidor.map(x=>x[1]),{horizontal:true,color:'#F26522'});
-  mkChart('ch_prazo','doughnut',['Dentro do prazo','Vencidos'],[S.dentro_prazo||0,(S.com_prazo||0)-(S.dentro_prazo||0)]);
+  mkChart('ch_prazo','doughnut',['No prazo','Fora do prazo'],[S.dentro_prazo||0,(S.com_prazo||0)-(S.dentro_prazo||0)]);
   mkChart('ch_tram','doughnut',['Na OGM','Em órgão externo'],[total-(S.externos||0),S.externos||0]);
   mkChart('ch_ods','bar',odsPares.map(x=>'ODS '+x[0]),odsPares.map(x=>x[1]),{colors:odsPares.map(x=>ODS_COLORS[x[0]]||'#5a6480')});
   mkChart('ch_net','bar',['Emitidas','Acatadas','Não acatadas'],
@@ -807,6 +807,15 @@ async function renderPainel(){
 /* ================= LISTA DE PROCESSOS ================= */
 let filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};
 let buscaTimer=null;
+let PRAZO_SRC=null; // "vw_processos" se a visão existir; senão "processos"
+async function fontePrazo(){
+  if(PRAZO_SRC)return PRAZO_SRC;
+  try{
+    const {error}=await sb.from("vw_processos").select("id",{head:true,count:"exact"}).limit(1);
+    PRAZO_SRC = error ? "processos" : "vw_processos";
+  }catch(e){ PRAZO_SRC="processos"; }
+  return PRAZO_SRC;
+}
 
 async function renderProcessos(){
   const statusOpts=[...AUX.status].sort(byPt()).map(s=>`<option>${esc(s)}</option>`).join("");
@@ -827,7 +836,7 @@ async function renderProcessos(){
         <select id="fext"><option value="">Tramitação (todas)</option><option value="sim">Em tramitação externa</option><option value="nao">Dentro da OGM</option></select>
         <select id="fserv"><option value="">Todos os servidores</option>${servOpts}</select>
         <select id="forgao"><option value="">Todos os órgãos</option>${orgOpts}</select>
-        <select id="fprazo"><option value="">Prazo (todos)</option><option value="venc">⚠ Somente vencidos</option><option value="dia">Vence em ≤ 3 dias</option><option value="ok">Dentro do prazo</option></select>
+        <select id="fprazo"><option value="">Prazo (todos)</option><option value="venc">⚠ Vencidos (em aberto)</option><option value="fora">Concluídos fora do prazo</option><option value="dia">Vence em ≤ 3 dias</option><option value="ok">No prazo</option></select>
       </div>
       <div class="toolbar">
         <label class="muted small" style="display:flex;align-items:center;gap:6px">Entrada de
@@ -858,6 +867,12 @@ async function renderProcessos(){
   bind("#fstatus","status");bind("#farea","area");bind("#fext","ext");
   bind("#fserv","servidor");bind("#forgao","orgao");bind("#fprazo","prazo");
   bind("#fde","de");bind("#fate","ate");
+  await fontePrazo();
+  // avisa se o filtro "Concluídos fora do prazo" precisar da visão ainda não criada
+  $("#fprazo").addEventListener("change",()=>{
+    if(filtro.prazo==="fora" && PRAZO_SRC!=="vw_processos")
+      toast("Para este filtro, rode o script prazo_situacao.sql no Supabase.");
+  });
   $("#flimpar").onclick=()=>{filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};PG.page=0;renderProcessos();};
   $("#pgprev").onclick=()=>{if(PG.page>0){PG.page--;fetchRows();}};
   $("#pgnext").onclick=()=>{if((PG.page+1)*PG.size<PG.total){PG.page++;fetchRows();}};
@@ -866,7 +881,9 @@ async function renderProcessos(){
 
 // monta a consulta com TODOS os filtros aplicados no banco
 function queryProcessos(sel,opts){
-  let q=sb.from("processos").select(sel,opts);
+  // usa a visão vw_processos (com situacao_prazo) quando o filtro de prazo precisa dela
+  const usaView = PRAZO_SRC==="vw_processos" && (filtro.prazo==="venc"||filtro.prazo==="fora"||filtro.prazo==="ok");
+  let q=sb.from(usaView?"vw_processos":"processos").select(sel,opts);
   if(filtro.status)q=q.eq("status",filtro.status);
   if(filtro.area)q=q.eq("area",filtro.area);
   if(filtro.servidor)q=q.eq("servidor",filtro.servidor);
@@ -875,13 +892,18 @@ function queryProcessos(sel,opts){
   if(filtro.orgao)q=q.ilike("orgao_demandado","%"+filtro.orgao+"%");
   if(filtro.de)q=q.gte("data_entrada",filtro.de);
   if(filtro.ate)q=q.lte("data_entrada",filtro.ate);
-  if(filtro.prazo==="venc"){
-    q=q.lt("prazo_interno",today()).not("status","in","(\"Concluído\",\"Arquivado\")");
-  }else if(filtro.prazo==="dia"){
-    q=q.gte("prazo_interno",today()).lte("prazo_interno",addDays(today(),3))
-       .not("status","in","(\"Concluído\",\"Arquivado\")");
-  }else if(filtro.prazo==="ok"){
-    q=q.gte("prazo_interno",today());
+  if(PRAZO_SRC==="vw_processos"){
+    if(filtro.prazo==="venc")      q=q.eq("situacao_prazo","vencido");
+    else if(filtro.prazo==="fora") q=q.eq("situacao_prazo","concluido_fora_prazo");
+    else if(filtro.prazo==="ok")   q=q.eq("situacao_prazo","no_prazo");
+    else if(filtro.prazo==="dia")  q=q.gte("prazo_interno",today()).lte("prazo_interno",addDays(today(),3))
+                                      .not("status","in","(\"Concluído\",\"Arquivado\")");
+  }else{ // sem a visão: aproxima o que dá; "fora" não é possível sem ela
+    if(filtro.prazo==="venc")      q=q.lt("prazo_interno",today()).not("status","in","(\"Concluído\",\"Arquivado\")");
+    else if(filtro.prazo==="dia")  q=q.gte("prazo_interno",today()).lte("prazo_interno",addDays(today(),3))
+                                      .not("status","in","(\"Concluído\",\"Arquivado\")");
+    else if(filtro.prazo==="ok")   q=q.gte("prazo_interno",today());
+    else if(filtro.prazo==="fora") q=q.lt("prazo_interno",today()).in("status",["Concluído","Arquivado"]);
   }
   const t=String(filtro.q||"").replace(/[%,()]/g," ").trim();
   if(t){q=q.or(["numero_sei","orgao_demandado","servidor","area","subarea","bairro","endereco"]
