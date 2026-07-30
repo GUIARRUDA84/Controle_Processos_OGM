@@ -982,19 +982,14 @@ function rowProc(p){
 }
 
 /* ================= FORMULÁRIO DE PROCESSO ================= */
-function isLAI(tipo){return ["Pedido LAI","Recurso LAI","Reclamação LAI"].includes(tipo);}
 function formProcesso(p){
   p=p||{};
   let isEdit=!!p.id;
-  const odsSel=new Set((p.ods||[]).map(Number));
-  const areas=[...new Set(AUX.taxonomia.map(t=>t.area))].sort(byPt());
-  const opt=(arr,val,ph)=>`<option value="">${ph}</option>`+arr.map(a=>`<option ${a===val?'selected':''}>${esc(a)}</option>`).join("");
   const servOpt=`<option value="">Selecione…</option>`+[...AUX.servidores].sort(byPt('nome')).map(s=>`<option ${s.nome===p.servidor?'selected':''}>${esc(s.nome)}</option>`).join("");
   const uniOpt=`<option value="">Selecione…</option>`+AUX.unidades.map(u=>{const v=`${u.sigla} — ${u.nome}`;return `<option ${v===p.unidade_resp?'selected':''}>${esc(v)}</option>`;}).join("");
   const tdOpt=`<option value="">Selecione…</option>`+[...AUX.tipos_demanda].sort(byPt()).map(t=>`<option ${t===p.tipo_demanda?'selected':''}>${esc(t)}</option>`).join("");
   const docOpt=`<option value="">Sem documento emitido</option>`+[...AUX.tipos_documento].sort(byPt()).map(t=>`<option ${t===p.doc_tipo?'selected':''}>${esc(t)}</option>`).join("");
   const stOpt=AUX.status.map(s=>`<option ${s===p.status?'selected':''}>${esc(s)}</option>`).join("");
-  const laiSit=SEED.lai_situacoes.map(s=>`<option ${s===p.lai_situacao?'selected':''}>${esc(s)}</option>`).join("");
   const predioOpt=`<option value="">Nenhum / não se aplica</option>`+[...AUX.predios].sort(byPt('nome')).map(pr=>`<option value="${esc(pr.nome)}" ${pr.nome===p.predio?'selected':''} data-end="${esc(pr.endereco||'')}" data-bai="${esc(pr.bairro||'')}">${esc(pr.nome)}${pr.endereco?'':' — (endereço não cadastrado)'}</option>`).join("");
   const odsOpts=AUX.ods.map(o=>`<span class="odsopt ${odsSel.has(o.numero)?'on':''}" data-ods="${o.numero}">${o.numero} · ${esc(o.nome)}</span>`).join("");
   // prazo automático: 20 dias da data de entrada (30 se prorrogado)
@@ -1014,7 +1009,7 @@ function formProcesso(p){
             <input type="date" id="data_entrada" value="${esc(defEntrada)}"></div>
         </div>
         <div class="frow">
-          <div><label class="f">Tipo de demanda</label><select id="tipo_demanda">${tdOpt}</select></div>
+          <div><label class="f">Tipo de demanda<span class="hint">Tipo principal do processo. Os detalhes de LAI (situação e resposta) ficam em cada manifestação.</span></label><select id="tipo_demanda">${tdOpt}</select></div>
           <div><label class="f">Forma de recebimento</label><select id="forma_recebimento">${
             `<option value="">Selecione…</option>`+[...(AUX.formas_recebimento||[])].sort(byPt())
               .map(f=>`<option ${f===p.forma_recebimento?'selected':''}>${esc(f)}</option>`).join("")
@@ -1081,13 +1076,6 @@ function formProcesso(p){
         </div>
         <label class="check"><input type="checkbox" id="net_acatada" ${p.net_acatada?'checked':''}>
           <span>Nota de Esclarecimento Técnico acatada <span class="hint">Marque quando a NET emitida pela OGM for acatada pelo órgão. Alimenta o gráfico do Painel.</span></span></label>
-      </fieldset>
-
-      <fieldset id="lai_fs" class="${isLAI(p.tipo_demanda)?'':'hidden'}"><legend>Acesso à Informação (LAI)</legend>
-        <div class="frow">
-          <div><label class="f">Situação do pedido</label><select id="lai_situacao"><option value="">Selecione…</option>${laiSit}</select></div>
-          <div><label class="f">Motivo da negativa</label><select id="lai_motivo"><option value="">—</option></select></div>
-        </div>
       </fieldset>
 
       <fieldset><legend>Integração com a Controladoria-Geral do Município</legend>
@@ -1207,6 +1195,12 @@ function formProcesso(p){
               <select data-c="lai_situacao" data-i="${i}"><option value="">Selecione…</option>${laiSitManifOpts}</select></div></div>
             <div class="frow one"><div><label class="f">Resposta LAI<span class="hint">Texto da resposta ao pedido de acesso à informação.</span></label>
               <textarea data-c="resposta_lai" data-i="${i}" class="tall" placeholder="Descreva a resposta fornecida ao pedido LAI">${esc(m.resposta_lai||'')}</textarea></div></div>
+            <div class="frow">
+              <div><label class="f">Motivo da negativa<span class="hint">Quando o acesso for negado.</span></label>
+                <input data-c="lai_motivo" data-i="${i}" value="${esc(m.lai_motivo||'')}"></div>
+              <div><label class="f">Motivo do atendimento parcial<span class="hint">Quando o acesso for parcial.</span></label>
+                <input data-c="motivo_parcial_lai" data-i="${i}" value="${esc(m.motivo_parcial_lai||'')}"></div>
+            </div>
           </div>
           <label class="f">ODS vinculado(s)<span class="hint">A subárea marca o ODS correspondente; clique para (des)marcar.</span></label>
           <div class="odsbox" data-odsbox="${i}">${
@@ -1259,7 +1253,7 @@ function formProcesso(p){
     m.ods=[...new Set([...(m.ods||[]).map(Number),Number(t.ods)])];
   }
 
-  $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",tipo:"",descricao:"",status:"",area:"",subarea:"",ods:[],lai_situacao:"",resposta_lai:""});pintaManifs();};
+  $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",tipo:"",descricao:"",status:"",area:"",subarea:"",ods:[],lai_situacao:"",resposta_lai:"",lai_motivo:"",motivo_parcial_lai:""});pintaManifs();};
   $("#manif_list").addEventListener("click",e=>{
     const ods=e.target.closest(".odsopt");
     if(ods){
@@ -1298,7 +1292,7 @@ function formProcesso(p){
       .then(({data})=>{
         if(data&&data.length){MANIFS=data.map(m=>({id:m.id,orgao:m.orgao||"",tipo:m.tipo||"",descricao:m.descricao||"",
           status:m.status||"",area:m.area||"",subarea:m.subarea||"",ods:(m.ods||[]).map(Number),
-          lai_situacao:m.lai_situacao||"",resposta_lai:m.resposta_lai||""}));}
+          lai_situacao:m.lai_situacao||"",resposta_lai:m.resposta_lai||"",lai_motivo:m.lai_motivo||"",motivo_parcial_lai:m.motivo_parcial_lai||""}));}
         else{const antigos=(p.orgaos&&p.orgaos.length)?p.orgaos:String(p.orgao_demandado||"").split("; ").filter(Boolean);
           MANIFS=antigos.map(o=>({orgao:o,descricao:"",status:"",
             area:p.area||"",subarea:p.subarea||"",ods:(p.ods||[]).map(Number),prazo:""}));}
@@ -1455,19 +1449,6 @@ function formProcesso(p){
     if(e.target.checked && !$("#ultima_unidade").value) $("#ultima_unidade").value=$("#unidade_resp").value;
   });
 
-  // Tipo de demanda → LAI
-  function toggleLAI(){$("#lai_fs").classList.toggle("hidden",!isLAI($("#tipo_demanda").value));}
-  $("#tipo_demanda").onchange=toggleLAI;
-  // Motivos LAI dependentes da situação
-  function fillMotivos(){
-    const sit=$("#lai_situacao").value;
-    const ms=AUX.lai_motivos.filter(m=>m.situacao===sit);
-    $("#lai_motivo").innerHTML=`<option value="">${ms.length?'Selecione…':'—'}</option>`+
-      ms.map(m=>`<option ${m.motivo===p.lai_motivo?'selected':''}>${esc(m.motivo)}</option>`).join("");
-  }
-  $("#lai_situacao").onchange=fillMotivos;
-  if(p.lai_situacao)fillMotivos();
-
   // Geocodificação gratuita (Nominatim / OpenStreetMap)
   async function geocodificar(){
     const end=$("#endereco").value.trim(), bairro=$("#bairro").value.trim();
@@ -1537,8 +1518,6 @@ function formProcesso(p){
       doc_tipo:$("#doc_tipo").value||null,
       doc_numero:$("#doc_numero").value.trim()||null,
       doc_data_saida:$("#doc_data_saida").value||null,
-      lai_situacao:isLAI($("#tipo_demanda").value)?($("#lai_situacao").value||null):null,
-      lai_motivo:isLAI($("#tipo_demanda").value)?($("#lai_motivo").value||null):null,
       vinculo_cgm:$("#vinculo_cgm").checked,
       status:$("#status").value||"Em análise",
       gera_recomendacao:$("#gera_recomendacao").checked,
@@ -1591,6 +1570,8 @@ function formProcesso(p){
             orgao:m.orgao||null,descricao:m.descricao||null,status:m.status||null,
             tipo:m.tipo||null,lai_situacao:(ehLaiTipo(m.tipo)?(m.lai_situacao||null):null),
             resposta_lai:(ehLaiTipo(m.tipo)?(m.resposta_lai||null):null),
+            lai_motivo:(ehLaiTipo(m.tipo)?(m.lai_motivo||null):null),
+            motivo_parcial_lai:(ehLaiTipo(m.tipo)?(m.motivo_parcial_lai||null):null),
             area:m.area||null,subarea:m.subarea||null,ods:(m.ods||[]).map(Number)}));
           const {error:em}=await sb.from("manifestacoes").insert(linhas);
           if(em)toast("Processo salvo, mas as manifestações falharam: "+em.message);
@@ -2451,9 +2432,6 @@ async function lerArquivo(file){
         endereco:endereco||null, bairro:bairro||null,
         area, subarea:sub, ods,
         link_sei:v(l,"link")||null,
-        lai_situacao:sitLai, lai_motivo:v(l,"motivo_negativa")||null,
-        motivo_parcial_lai:v(l,"motivo_parcial")||null,
-        resposta_lai:v(l,"resposta_lai")||null,
         observacoes:null,
         manifs:[], linhas:[nlin]
       });
@@ -2465,6 +2443,7 @@ async function lerArquivo(file){
       lai_situacao:sitLai||null,
       resposta_lai:v(l,"resposta_lai")||null,
       lai_motivo:v(l,"motivo_negativa")||null,
+      motivo_parcial_lai:v(l,"motivo_parcial")||null,
       area:area||null,subarea:sub||null,ods:ods.slice()});
   });
 
@@ -2617,8 +2596,7 @@ async function executarImport(novos){
         endereco:g.endereco, bairro:g.bairro,
         area:g.area, subarea:g.subarea, ods:g.ods,
         link_sei:g.link_sei,
-        lai_situacao:g.lai_situacao, lai_motivo:g.lai_motivo,
-        resposta_lai:g.resposta_lai, motivo_parcial_lai:g.motivo_parcial_lai,
+        motivo_parcial_lai:g.motivo_parcial_lai,
         latitude:g.latitude??null, longitude:g.longitude??null,
         unidade_resp:UNIDADE_CARGA,
         status:"Concluído", origem_carga:lote};
@@ -2632,7 +2610,7 @@ async function executarImport(novos){
         const pid=mapa.get(g.numero_sei); if(!pid)return;
         g.manifs.forEach((m,k)=>manifs.push({processo_id:pid,sequencia:k+1,
           orgao:m.orgao,descricao:m.descricao,tipo:m.tipo,lai_situacao:m.lai_situacao,
-          resposta_lai:m.resposta_lai,lai_motivo:m.lai_motivo,
+          resposta_lai:m.resposta_lai,lai_motivo:m.lai_motivo,motivo_parcial_lai:m.motivo_parcial_lai,
           area:m.area,subarea:m.subarea,ods:m.ods}));
       });
       if(manifs.length)await sb.from("manifestacoes").insert(manifs);
