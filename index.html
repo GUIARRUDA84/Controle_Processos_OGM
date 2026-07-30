@@ -991,6 +991,7 @@ function formProcesso(p){
   const docOpt=`<option value="">Sem documento emitido</option>`+[...AUX.tipos_documento].sort(byPt()).map(t=>`<option ${t===p.doc_tipo?'selected':''}>${esc(t)}</option>`).join("");
   const stOpt=AUX.status.map(s=>`<option ${s===p.status?'selected':''}>${esc(s)}</option>`).join("");
   const predioOpt=`<option value="">Nenhum / não se aplica</option>`+[...AUX.predios].sort(byPt('nome')).map(pr=>`<option value="${esc(pr.nome)}" ${pr.nome===p.predio?'selected':''} data-end="${esc(pr.endereco||'')}" data-bai="${esc(pr.bairro||'')}">${esc(pr.nome)}${pr.endereco?'':' — (endereço não cadastrado)'}</option>`).join("");
+  const odsSel = new Set((p.ods || []).map(Number));
   const odsOpts=AUX.ods.map(o=>`<span class="odsopt ${odsSel.has(o.numero)?'on':''}" data-ods="${o.numero}">${o.numero} · ${esc(o.nome)}</span>`).join("");
   // prazo automático: 20 dias da data de entrada (30 se prorrogado)
   const defEntrada=p.data_entrada||today();
