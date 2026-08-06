@@ -518,9 +518,23 @@ function fallback(k){
 }
 
 async function loadProcessos(cols,limite){
-  const {data,error}=await sb.from("processos").select(cols||LIST_COLS)
-    .order("created_at",{ascending:false}).limit(limite||500);
-  PROCESSOS = error?[]:(data||[]);
+  // O Supabase devolve no máximo 1000 linhas por requisição. Para não
+  // truncar a base (ex.: 1790 processos apareciam como 1000), buscamos
+  // em páginas de 1000 até completar o total solicitado.
+  const alvo=limite||500, passo=1000;
+  let todos=[], from=0;
+  for(let i=0;i<80;i++){                    // teto de segurança (80 mil)
+    const ate=Math.min(from+passo,alvo)-1;
+    if(ate<from)break;
+    const {data,error}=await sb.from("processos").select(cols||LIST_COLS)
+      .order("created_at",{ascending:false}).range(from,ate);
+    if(error){ if(!todos.length)PROCESSOS=[]; return; }
+    todos=todos.concat(data||[]);
+    if(!data||data.length<passo)break;      // última página
+    from+=passo;
+    if(todos.length>=alvo)break;
+  }
+  PROCESSOS=todos;
 }
 function invalidarCache(){CACHE.painel=null;CACHE.painelAt=0;}
 
@@ -637,8 +651,16 @@ async function renderPainel(){
   if(!S){
     try{const {data,error}=await sb.rpc('painel_stats');if(!error&&data)S=data;}catch(e){}
     if(!S){ // fallback: banco ainda sem a função painel_stats()
-      await loadProcessos("id,status,tipo_demanda,area,unidade_resp,servidor,bairro,orgaos,orgao_demandado,ods,data_entrada,doc_data_saida,doc_tipo,net_acatada,prazo_interno,tramitacao_ext,latitude,longitude,updated_at",2000);
+      await loadProcessos("id,status,tipo_demanda,area,unidade_resp,servidor,bairro,orgaos,orgao_demandado,ods,data_entrada,doc_data_saida,doc_tipo,net_acatada,prazo_interno,tramitacao_ext,latitude,longitude,updated_at",100000);
       S=statsLocal(PROCESSOS);
+      // rede de segurança: confirma o total por contagem exata no banco
+      try{
+        const {count}=await sb.from("processos").select("*",{count:"exact",head:true});
+        if(count!=null){
+          S.total=count;
+          if(PROCESSOS.length<count) S._parcial=count-PROCESSOS.length;
+        }
+      }catch(e){}
     }
     CACHE.painel=S;CACHE.painelAt=Date.now();
   }
@@ -667,9 +689,17 @@ async function renderPainel(){
   // Integração CGM — quadro gerencial da admissibilidade
   let CGM={total:0,adm:0,inadm:0,valor:0,prio:[],tipo:[]};
   try{
-    const {data:ad}=await sb.from("admissibilidade_cgm")
-      .select("resultado,habilitacao,prioridade,tipo_irregularidade,valor_estimado");
-    const A=ad||[];
+    // pagina para não parar nas 1000 primeiras linhas
+    let A=[], from=0; const passo=1000;
+    for(let i=0;i<60;i++){
+      const {data:ad,error}=await sb.from("admissibilidade_cgm")
+        .select("resultado,habilitacao,prioridade,tipo_irregularidade,valor_estimado")
+        .range(from,from+passo-1);
+      if(error)break;
+      A=A.concat(ad||[]);
+      if(!ad||ad.length<passo)break;
+      from+=passo;
+    }
     const g=(campo)=>{const m={};A.forEach(x=>{const k=x[campo]||"(sem)";m[k]=(m[k]||0)+1;});
       return Object.entries(m).sort((a,b)=>b[1]-a[1]);};
     const okv=x=>(x.habilitacao||x.resultado)==='Habilitada'||x.resultado==='Admissível';
@@ -991,7 +1021,6 @@ function formProcesso(p){
   const docOpt=`<option value="">Sem documento emitido</option>`+[...AUX.tipos_documento].sort(byPt()).map(t=>`<option ${t===p.doc_tipo?'selected':''}>${esc(t)}</option>`).join("");
   const stOpt=AUX.status.map(s=>`<option ${s===p.status?'selected':''}>${esc(s)}</option>`).join("");
   const predioOpt=`<option value="">Nenhum / não se aplica</option>`+[...AUX.predios].sort(byPt('nome')).map(pr=>`<option value="${esc(pr.nome)}" ${pr.nome===p.predio?'selected':''} data-end="${esc(pr.endereco||'')}" data-bai="${esc(pr.bairro||'')}">${esc(pr.nome)}${pr.endereco?'':' — (endereço não cadastrado)'}</option>`).join("");
-  const odsSel = new Set((p.ods || []).map(Number));
   const odsOpts=AUX.ods.map(o=>`<span class="odsopt ${odsSel.has(o.numero)?'on':''}" data-ods="${o.numero}">${o.numero} · ${esc(o.nome)}</span>`).join("");
   // prazo automático: 20 dias da data de entrada (30 se prorrogado)
   const defEntrada=p.data_entrada||today();
@@ -2573,7 +2602,7 @@ async function executarImport(novos){
   const barra=$("#imp_barra"), prog=$("#imp_prog");
   barra.classList.remove("hidden"); prog.classList.remove("hidden");
   const lote="planilha "+new Date().toLocaleString('pt-BR');
-  let feitos=0, falhas=0;
+  let feitos=0, falhas=0, manifOk=0, manifFalhas=0, ultimoErroManif="";
 
   // 1) coordenadas (para o mapa de calor)
   if($("#imp_geo").checked){
@@ -2614,7 +2643,24 @@ async function executarImport(novos){
           resposta_lai:m.resposta_lai,lai_motivo:m.lai_motivo,motivo_parcial_lai:m.motivo_parcial_lai,
           area:m.area,subarea:m.subarea,ods:m.ods}));
       });
-      if(manifs.length)await sb.from("manifestacoes").insert(manifs);
+      if(manifs.length){
+        // 1ª tentativa: com todos os campos (inclui LAI, se o banco tiver as colunas)
+        let r=await sb.from("manifestacoes").insert(manifs);
+        if(r.error){
+          // 2ª tentativa: só colunas básicas (caso o banco não tenha os campos LAI)
+          const basicas=manifs.map(m=>({processo_id:m.processo_id,sequencia:m.sequencia,
+            orgao:m.orgao,descricao:m.descricao,tipo:m.tipo,area:m.area,subarea:m.subarea,ods:m.ods}));
+          r=await sb.from("manifestacoes").insert(basicas);
+          if(r.error){
+            // 3ª tentativa: mínimo absoluto (colunas originais da tabela)
+            const min=manifs.map(m=>({processo_id:m.processo_id,sequencia:m.sequencia,
+              orgao:m.orgao,descricao:m.descricao,area:m.area,subarea:m.subarea}));
+            r=await sb.from("manifestacoes").insert(min);
+          }
+        }
+        if(r.error){ manifFalhas+=manifs.length; ultimoErroManif=r.error.message; }
+        else manifOk+=manifs.length;
+      }
       feitos+=bloco.length;
     }
     const pc=30+Math.round(Math.min(70,(i+passo)/novos.length*70));
@@ -2624,7 +2670,8 @@ async function executarImport(novos){
 
   invalidarCache();
   barra.querySelector("i").style.width="100%";
-  prog.innerHTML=`<b>Concluído.</b> ${feitos} processo(s) importado(s)${falhas?`, ${falhas} com falha`:""}.<br>
+  prog.innerHTML=`<b>Concluído.</b> ${feitos} processo(s) e ${manifOk} manifestaç${manifOk===1?'ão':'ões'} importad${manifOk===1?'a':'as'}${falhas?`, ${falhas} processo(s) com falha`:""}.<br>
+    ${manifFalhas?`<span style="color:#c02a1f">Atenção: ${manifFalhas} manifestação(ões) não foram gravadas. Rode o script <b>lai_manifestacao.sql</b> no Supabase e reimporte este lote. Detalhe: ${esc(ultimoErroManif)}</span><br>`:""}
     Lote: <code>${esc(lote)}</code> — guarde esta identificação caso precise desfazer a carga.`;
   btn.textContent="Fechar"; btn.disabled=false;
   btn.onclick=()=>{modalRoot.innerHTML="";go("processos");};
