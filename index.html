@@ -476,7 +476,7 @@ async function loadAuxAntigo(){
     predios:"aux_predios", tipos_tratativa:"aux_tipos_tratativa",
     tipos_irregularidade:"aux_tipos_irregularidade", feriados:"aux_feriados",
     hipoteses_inabilit:"aux_hipoteses_inabilitacao", formas_recebimento:"aux_formas_recebimento",
-    equivalencias:"aux_equivalencias", bairros:"aux_bairros"
+    equivalencias:"aux_equivalencias", bairros:"aux_bairros", eixos:"aux_eixos"
   };
   // busca todas as tabelas EM PARALELO (antes era uma após a outra)
   const chaves=Object.keys(map);
@@ -508,6 +508,14 @@ function fallback(k){
   if(k==="formas_recebimento")return ["Presencial","Telefone","E-mail","Formulário eletrônico","WhatsApp","Fala.BR","Outros"];
   if(k==="equivalencias")return [];
   if(k==="bairros")return [];
+  if(k==="eixos")return [
+    {nome:"Economia e renda"},{nome:"Educação, Cultura e Lazer"},
+    {nome:"Equipamentos públicos e infraestrutura"},{nome:"Geografia e População"},
+    {nome:"Governança, Governo e Participação Popular"},{nome:"Meio Ambiente"},
+    {nome:"Planejamento Urbano – Habitação"},{nome:"Planejamento Urbano – Mobilidade"},
+    {nome:"Planejamento Urbano – Ocupação do Solo"},{nome:"Planejamento Urbano – Uso do Solo"},
+    {nome:"Planos, programas e projetos setoriais"},{nome:"Saúde e Vida"},
+    {nome:"Segurança, Paz e Justiça"}];
   if(k==="hipoteses_inabilit"){ // deriva da taxonomia oficial, se a tabela não existir
     return (AUX.taxonomia||SEED.taxonomia||[])
       .filter(t=>t.area==="Gestão de manifestações"&&/^Não habilitada/.test(t.subarea||""))
@@ -624,14 +632,15 @@ function statsLocal(p){
 // fallback do painel por manifestação: usado só quando a função painel_areas()
 // ainda não existe no banco. Lê as manifestações em páginas e conta no navegador.
 async function agregaManifLocal(){
-  const area={}, sub={}, ods={}; let total=0, from=0; const passo=1000;
+  const area={}, sub={}, ods={}, eixo={}; let total=0, from=0; const passo=1000;
   for(let i=0;i<60;i++){ // teto de 60 mil, por segurança
     const {data,error}=await sb.from("manifestacoes")
-      .select("area,subarea,ods").range(from,from+passo-1);
+      .select("eixo,area,subarea,ods").range(from,from+passo-1);
     if(error||!data||!data.length)break;
     data.forEach(m=>{
       total++;
       const a=(m.area&&m.area.trim())?m.area:"(sem área)"; area[a]=(area[a]||0)+1;
+      if(m.eixo&&m.eixo.trim())eixo[m.eixo]=(eixo[m.eixo]||0)+1;
       if(m.subarea&&m.subarea.trim())sub[m.subarea]=(sub[m.subarea]||0)+1;
       (m.ods||[]).forEach(o=>{const n=Number(o);if(n>=1&&n<=17)ods[n]=(ods[n]||0)+1;});
     });
@@ -640,7 +649,7 @@ async function agregaManifLocal(){
   }
   const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n||10);
   return {total,
-    area:top(area), subarea:top(sub),
+    area:top(area), subarea:top(sub), eixo:top(eixo,13),
     ods:Object.entries(ods).map(([k,v])=>[Number(k),v]).sort((a,b)=>a[0]-b[0])};
 }
 
@@ -674,12 +683,14 @@ async function renderPainel(){
       if(ma.total_manif) S.manifestacoes=ma.total_manif;
       if(ma.area && ma.area.length)       S.area=ma.area;
       if(ma.subarea && ma.subarea.length) S.subarea=ma.subarea;
+      if(ma.eixo && ma.eixo.length)       S.eixo=ma.eixo;
       if(ma.ods && ma.ods.length)         S.ods=ma.ods;
     }else{
       // fallback sem a função: agrega no navegador a partir das manifestações
       const ag=await agregaManifLocal();
       if(ag){S.manifestacoes=ag.total; if(ag.area.length)S.area=ag.area;
-        if(ag.subarea.length)S.subarea=ag.subarea; if(ag.ods.length)S.ods=ag.ods;}
+        if(ag.subarea.length)S.subarea=ag.subarea; if(ag.eixo&&ag.eixo.length)S.eixo=ag.eixo;
+        if(ag.ods.length)S.ods=ag.ods;}
     }
   }catch(e){
     const {count}=await sb.from("manifestacoes").select("*",{count:"exact",head:true});
@@ -717,7 +728,7 @@ async function renderPainel(){
   const entradasMes=(S.mensal||[]).map(x=>x[1]), conclMes=(S.mensal||[]).map(x=>x[2]);
   const dStatus=S.status||[],dTipo=S.tipo||[],dArea=S.area||[],dOrgao=S.orgao||[],
         dUnidade=S.unidade||[],dServidor=S.servidor||[],dBairro=S.bairro||[],odsPares=S.ods||[],
-        dSubarea=S.subarea||[];
+        dSubarea=S.subarea||[],dEixo=S.eixo||[];
 
   app.innerHTML=`
     <div class="toolbar"><span class="muted small" style="margin-left:auto">
@@ -743,6 +754,7 @@ async function renderPainel(){
     <div class="charts">
       <div class="card chart-card"><h3>Por situação</h3><p class="cap">Estágio atual dos processos</p><div class="chart-box"><canvas id="ch_status"></canvas></div></div>
       <div class="card chart-card"><h3>Por tipo de demanda</h3><p class="cap">Natureza das manifestações</p><div class="chart-box"><canvas id="ch_tipo"></canvas></div></div>
+      <div class="card chart-card"><h3>Por eixo temático</h3><p class="cap">Eixos do Plano Diretor — contados por manifestação</p><div class="chart-box tallbox"><canvas id="ch_eixo"></canvas></div></div>
       <div class="card chart-card"><h3>Por área temática</h3><p class="cap">Top 10 áreas — contadas por manifestação</p><div class="chart-box tallbox"><canvas id="ch_area"></canvas></div></div>
       <div class="card chart-card"><h3>Por subárea temática</h3><p class="cap">Top 10 subáreas — contadas por manifestação</p><div class="chart-box tallbox"><canvas id="ch_subarea"></canvas></div></div>
       <div class="card chart-card"><h3>Por órgão demandado</h3><p class="cap">Top 8 órgãos</p><div class="chart-box tallbox"><canvas id="ch_orgao"></canvas></div></div>
@@ -809,6 +821,7 @@ async function renderPainel(){
   }
   mkChart('ch_status','doughnut',dStatus.map(x=>x[0]),dStatus.map(x=>x[1]));
   mkChart('ch_tipo','bar',dTipo.map(x=>x[0]),dTipo.map(x=>x[1]),{color:'#7A5CF0'});
+  mkChart('ch_eixo','bar',dEixo.map(x=>x[0]),dEixo.map(x=>x[1]),{horizontal:true,color:'#6A4CF0'});
   mkChart('ch_area','bar',dArea.map(x=>x[0]),dArea.map(x=>x[1]),{horizontal:true,color:'#0056EF'});
   mkChart('ch_subarea','bar',dSubarea.map(x=>x[0]),dSubarea.map(x=>x[1]),{horizontal:true,color:'#12A5B4'});
   mkChart('ch_orgao','bar',dOrgao.map(x=>String(x[0]).split(' — ')[0]),dOrgao.map(x=>x[1]),{horizontal:true,color:'#12A5B4'});
@@ -1185,6 +1198,16 @@ function formProcesso(p){
   const tipoManifOpts=[...(AUX.tipos_demanda||[])].sort(byPt()).map(t=>`<option>${esc(t)}</option>`).join("");
   const laiSitManifOpts=[...(AUX.lai_situacoes||SEED.lai_situacoes||[])].sort(byPt()).map(s=>`<option>${esc(s)}</option>`).join("");
   const ehLaiTipo=(t)=>/lai/i.test(t||"");
+  const eixoOpts=[...(AUX.eixos||[])].map(e=>`<option>${esc(e.nome)}</option>`).join("");
+  // eixo de uma área (a partir da taxonomia); áreas de um eixo (para filtrar)
+  const eixoDaArea=(a)=>{const t=(AUX.taxonomia||[]).find(x=>x.area===a&&x.eixo);return t?t.eixo:"";};
+  const areasDoEixo=(e)=>{
+    if(!e)return [...new Set(AUX.taxonomia.map(t=>t.area))];
+    const arr=[...new Set(AUX.taxonomia.filter(t=>t.eixo===e).map(t=>t.area))];
+    return arr.length?arr:[...new Set(AUX.taxonomia.map(t=>t.area))]; // se nada mapeado ainda, mostra todas
+  };
+  const areaOptsDoEixo=(e,sel)=>`<option value="">Selecione…</option>`+
+    areasDoEixo(e).sort(byPt()).map(a=>`<option ${a===sel?'selected':''}>${esc(a)}</option>`).join("");
 
   function pintaManifs(){
     const box=$("#manif_list");
@@ -1211,7 +1234,9 @@ function formProcesso(p){
           </div>
           <div class="frow one"><div><label class="f">Objeto da manifestação</label>
             <textarea data-c="descricao" data-i="${i}" placeholder="Descreva o que está sendo demandado deste órgão">${esc(m.descricao||'')}</textarea></div></div>
-          <div class="frow">
+          <div class="frow three">
+            <div><label class="f">Eixo temático<span class="hint">Filtra as áreas do eixo escolhido.</span></label>
+              <select data-c="eixo" data-i="${i}"><option value="">Selecione…</option>${eixoOpts}</select></div>
             <div><label class="f">Área</label>
               <select data-c="area" data-i="${i}"><option value="">Selecione…</option>${areaListOpts}</select></div>
             <div><label class="f">Subárea</label>
@@ -1243,7 +1268,10 @@ function formProcesso(p){
         if(g("status"))g("status").value=m.status||"";
         if(g("tipo"))g("tipo").value=m.tipo||"";
         if(g("lai_situacao"))g("lai_situacao").value=m.lai_situacao||"";
-        if(g("area")){g("area").value=m.area||"";}
+        // eixo: usa o gravado ou deduz da área; filtra as áreas do eixo
+        const eixoAtual=m.eixo||eixoDaArea(m.area||"");
+        if(g("eixo"))g("eixo").value=eixoAtual||"";
+        if(g("area"))g("area").innerHTML=areaOptsDoEixo(eixoAtual,m.area||"");
         preencheSubarea(i,m.subarea||"");
         mostraDescSub(i);
       });
@@ -1282,7 +1310,7 @@ function formProcesso(p){
     m.ods=[...new Set([...(m.ods||[]).map(Number),Number(t.ods)])];
   }
 
-  $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",tipo:"",descricao:"",status:"",area:"",subarea:"",ods:[],lai_situacao:"",resposta_lai:"",lai_motivo:"",motivo_parcial_lai:""});pintaManifs();};
+  $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",tipo:"",eixo:"",descricao:"",status:"",area:"",subarea:"",ods:[],lai_situacao:"",resposta_lai:"",lai_motivo:"",motivo_parcial_lai:""});pintaManifs();};
   $("#manif_list").addEventListener("click",e=>{
     const ods=e.target.closest(".odsopt");
     if(ods){
@@ -1307,7 +1335,18 @@ function formProcesso(p){
     const el=e.target.closest("[data-c]");if(!el)return;
     const i=Number(el.dataset.i), c=el.dataset.c;
     MANIFS[i][c]=el.value;
-    if(c==="area"){MANIFS[i].subarea="";preencheSubarea(i,"");mostraDescSub(i);}
+    if(c==="eixo"){
+      MANIFS[i].area="";MANIFS[i].subarea="";
+      const selA=$("#manif_list").querySelector(`[data-c="area"][data-i="${i}"]`);
+      if(selA)selA.innerHTML=areaOptsDoEixo(el.value,"");
+      preencheSubarea(i,"");mostraDescSub(i);
+    }
+    if(c==="area"){
+      MANIFS[i].subarea="";preencheSubarea(i,"");mostraDescSub(i);
+      // se a área tem eixo definido, preenche o eixo automaticamente
+      const eA=eixoDaArea(el.value);
+      if(eA){MANIFS[i].eixo=eA;const selE=$("#manif_list").querySelector(`[data-c="eixo"][data-i="${i}"]`);if(selE)selE.value=eA;}
+    }
     if(c==="subarea"){mostraDescSub(i);marcaOdsDaSubarea(i);}
     if(c==="tipo"){
       const box=$("#manif_list").querySelector(`[data-lai="${i}"]`);
@@ -1320,11 +1359,11 @@ function formProcesso(p){
     sb.from("manifestacoes").select("*").eq("processo_id",p.id).order("sequencia")
       .then(({data})=>{
         if(data&&data.length){MANIFS=data.map(m=>({id:m.id,orgao:m.orgao||"",tipo:m.tipo||"",descricao:m.descricao||"",
-          status:m.status||"",area:m.area||"",subarea:m.subarea||"",ods:(m.ods||[]).map(Number),
+          status:m.status||"",eixo:m.eixo||"",area:m.area||"",subarea:m.subarea||"",ods:(m.ods||[]).map(Number),
           lai_situacao:m.lai_situacao||"",resposta_lai:m.resposta_lai||"",lai_motivo:m.lai_motivo||"",motivo_parcial_lai:m.motivo_parcial_lai||""}));}
         else{const antigos=(p.orgaos&&p.orgaos.length)?p.orgaos:String(p.orgao_demandado||"").split("; ").filter(Boolean);
           MANIFS=antigos.map(o=>({orgao:o,descricao:"",status:"",
-            area:p.area||"",subarea:p.subarea||"",ods:(p.ods||[]).map(Number),prazo:""}));}
+            eixo:eixoDaArea(p.area||""),area:p.area||"",subarea:p.subarea||"",ods:(p.ods||[]).map(Number),prazo:""}));}
         pintaManifs();
       });
   }else{ pintaManifs(); }
@@ -1601,6 +1640,7 @@ function formProcesso(p){
             resposta_lai:(ehLaiTipo(m.tipo)?(m.resposta_lai||null):null),
             lai_motivo:(ehLaiTipo(m.tipo)?(m.lai_motivo||null):null),
             motivo_parcial_lai:(ehLaiTipo(m.tipo)?(m.motivo_parcial_lai||null):null),
+            eixo:m.eixo||eixoDaArea(m.area||"")||null,
             area:m.area||null,subarea:m.subarea||null,ods:(m.ods||[]).map(Number)}));
           const {error:em}=await sb.from("manifestacoes").insert(linhas);
           if(em)toast("Processo salvo, mas as manifestações falharam: "+em.message);
@@ -2099,7 +2139,8 @@ function formRecomendacao(processoId){
 
 /* ================= TABELAS AUXILIARES ================= */
 const AUXDEFS=[
-  {key:"taxonomia",tbl:"aux_taxonomia",label:"Taxonomia",cols:[["area","Área"],["subarea","Subárea"],["descricao","Descrição"],["ods","ODS"]]},
+  {key:"eixos",tbl:"aux_eixos",label:"Eixos Temáticos",cols:[["nome","Eixo"],["descricao","Descrição"]]},
+  {key:"taxonomia",tbl:"aux_taxonomia",label:"Taxonomia",cols:[["eixo","Eixo"],["area","Área"],["subarea","Subárea"],["descricao","Descrição"],["ods","ODS"]]},
   {key:"ods",tbl:"aux_ods",label:"ODS",cols:[["numero","Nº"],["nome","Objetivo"],["descricao","Descrição"]]},
   {key:"lai_motivos",tbl:"aux_lai_motivos",label:"Motivos LAI",cols:[["situacao","Situação"],["motivo","Motivo"],["descricao","Descrição"]]},
   {key:"lai_situacoes",tbl:"aux_lai_situacoes",label:"Situações LAI",cols:[["nome","Situação"]],simple:true},
@@ -2124,6 +2165,7 @@ async function renderAuxiliares(){
     <div class="toolbar">
       <h2 class="sec" style="margin-right:auto">Gestão do Sistema</h2>
       <button class="btn primary" id="importar">⬆ Importar planilha</button>
+      <button class="btn ghost" id="vincular_eixos">Vincular Áreas aos Eixos</button>
       <button class="btn ghost" id="backup">⬇ Baixar backup</button>
       <button class="btn ghost" id="seed">Popular dados iniciais</button>
     </div>
@@ -2134,7 +2176,55 @@ async function renderAuxiliares(){
   $("#seed").onclick=popularSeed;
   $("#backup").onclick=baixarBackup;
   $("#importar").onclick=formImportar;
+  $("#vincular_eixos").onclick=formVincularEixos;
   drawAuxTable();
+}
+
+// Tela para mapear cada Área ao seu Eixo Temático (grava na taxonomia)
+function formVincularEixos(){
+  const eixos=[...(AUX.eixos||[])].map(e=>e.nome);
+  // uma linha por ÁREA distinta; o eixo atual é o da 1ª subárea da área
+  const areas=[...new Set((AUX.taxonomia||[]).map(t=>t.area))].filter(Boolean).sort(byPt());
+  const eixoDaArea=a=>{const t=(AUX.taxonomia||[]).find(x=>x.area===a&&x.eixo);return t?t.eixo:"";};
+  const linhas=areas.map(a=>`<tr>
+    <td>${esc(a)}</td>
+    <td><select data-area="${esc(a)}">
+      <option value="">— sem eixo —</option>
+      ${eixos.map(e=>`<option ${e===eixoDaArea(a)?'selected':''}>${esc(e)}</option>`).join("")}
+    </select></td></tr>`).join("");
+  modalRoot.innerHTML=`<div class="overlay"><div class="modal" style="max-width:760px">
+    <div class="modal-head"><h3>Vincular Áreas aos Eixos Temáticos</h3><button class="x" id="mx">×</button></div>
+    <div class="modal-body">
+      <p class="lead">Defina o <b>Eixo Temático</b> de cada área. O eixo fica acima da área e da subárea, e passa a filtrar as áreas no cadastro das manifestações. Ao salvar, o eixo é aplicado a <b>todas as subáreas</b> daquela área.</p>
+      ${areas.length?`<div class="tblwrap"><table><thead><tr><th>Área</th><th>Eixo Temático</th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>`:`<div class="empty">Nenhuma área na taxonomia ainda.</div>`}
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="cancel">Cancelar</button>
+      <button class="btn primary" id="salvar_eixos">Salvar vínculos</button>
+    </div>
+  </div></div>`;
+  const close=()=>modalRoot.innerHTML="";
+  $("#mx").onclick=close;$("#cancel").onclick=close;
+  $("#salvar_eixos").onclick=async()=>{
+    const btn=$("#salvar_eixos");btn.disabled=true;btn.textContent="Salvando…";
+    const selects=[...modalRoot.querySelectorAll("select[data-area]")];
+    let n=0;
+    for(const s of selects){
+      const area=s.dataset.area, eixo=s.value||null;
+      // só grava se mudou em relação ao valor atual
+      if(eixoDaArea(area)!==(eixo||"")){
+        const {error}=await sb.from("aux_taxonomia").update({eixo}).eq("area",area);
+        if(!error){
+          (AUX.taxonomia||[]).forEach(t=>{if(t.area===area)t.eixo=eixo;});
+          n++;
+        }
+      }
+    }
+    invalidarCache();
+    close();
+    toast(n?`Vínculos atualizados em ${n} área(s).`:"Nenhuma alteração.");
+  };
 }
 async function drawAuxTable(){
   const def=AUXDEFS.find(d=>d.key===auxTab);
@@ -2342,6 +2432,7 @@ async function lerArquivo(file){
     return c.length===1?c[0]:null;
   }
   const idxTipo=new Map(); (AUX.tipos_demanda||[]).forEach(t=>idxTipo.set(norm(t),t));
+  const idxEixo=new Map(); (AUX.taxonomia||[]).forEach(t=>{if(t.area&&t.eixo&&!idxEixo.has(norm(t.area)))idxEixo.set(norm(t.area),t.eixo);});
 
   // ---- equivalências cadastradas (de/para) ----
   const EQ=new Map();
@@ -2473,6 +2564,7 @@ async function lerArquivo(file){
       resposta_lai:v(l,"resposta_lai")||null,
       lai_motivo:v(l,"motivo_negativa")||null,
       motivo_parcial_lai:v(l,"motivo_parcial")||null,
+      eixo:(area?idxEixo.get(norm(area))||null:null),
       area:area||null,subarea:sub||null,ods:ods.slice()});
   });
 
@@ -2639,7 +2731,7 @@ async function executarImport(novos){
         const pid=mapa.get(g.numero_sei); if(!pid)return;
         g.manifs.forEach((m,k)=>manifs.push({processo_id:pid,sequencia:k+1,
           orgao:m.orgao,descricao:m.descricao,tipo:m.tipo,lai_situacao:m.lai_situacao,
-          resposta_lai:m.resposta_lai,lai_motivo:m.lai_motivo,motivo_parcial_lai:m.motivo_parcial_lai,
+          resposta_lai:m.resposta_lai,lai_motivo:m.lai_motivo,motivo_parcial_lai:m.motivo_parcial_lai,eixo:m.eixo,
           area:m.area,subarea:m.subarea,ods:m.ods}));
       });
       if(manifs.length){
@@ -2648,7 +2740,7 @@ async function executarImport(novos){
         if(r.error){
           // 2ª tentativa: só colunas básicas (caso o banco não tenha os campos LAI)
           const basicas=manifs.map(m=>({processo_id:m.processo_id,sequencia:m.sequencia,
-            orgao:m.orgao,descricao:m.descricao,tipo:m.tipo,area:m.area,subarea:m.subarea,ods:m.ods}));
+            orgao:m.orgao,descricao:m.descricao,tipo:m.tipo,eixo:m.eixo,area:m.area,subarea:m.subarea,ods:m.ods}));
           r=await sb.from("manifestacoes").insert(basicas);
           if(r.error){
             // 3ª tentativa: mínimo absoluto (colunas originais da tabela)
