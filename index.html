@@ -113,6 +113,10 @@
   .odsbox{display:flex;flex-wrap:wrap;gap:6px;max-height:150px;overflow:auto;border:1px solid var(--linha);border-radius:8px;padding:8px}
   .odsopt{font-size:11.5px;padding:5px 9px;border:1px solid #d5ddee;border-radius:16px;cursor:pointer;user-select:none}
   .odsopt.on{background:var(--azul);color:#fff;border-color:var(--azul)}
+  .metaschips{display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
+  .metachip{font-size:11.5px;padding:5px 9px;border:1px solid #d5ddee;border-radius:8px;cursor:pointer;user-select:none;display:flex;align-items:flex-start;line-height:1.35;background:#fbfcff}
+  .metachip.on{background:#eef4ff;border-color:var(--azul)}
+  .metachip b{color:#0a3aa8;flex:0 0 auto}
   .warn{background:#fde3e0;color:#b02a1f;border:1px solid #f3c9c5;border-radius:8px;padding:8px 11px;font-size:12.5px;font-weight:600;margin-top:6px;display:none}
   .warn.show{display:block}
   .desc-sub{background:#f5f8ff;border:1px solid #dbe6ff;border-radius:8px;padding:9px 11px;font-size:12.5px;color:#3a4870;margin-top:-4px;margin-bottom:12px;display:none}
@@ -476,7 +480,7 @@ async function loadAuxAntigo(){
     predios:"aux_predios", tipos_tratativa:"aux_tipos_tratativa",
     tipos_irregularidade:"aux_tipos_irregularidade", feriados:"aux_feriados",
     hipoteses_inabilit:"aux_hipoteses_inabilitacao", formas_recebimento:"aux_formas_recebimento",
-    equivalencias:"aux_equivalencias", bairros:"aux_bairros", eixos:"aux_eixos"
+    equivalencias:"aux_equivalencias", bairros:"aux_bairros", eixos:"aux_eixos", ods_metas:"aux_ods_metas"
   };
   // busca todas as tabelas EM PARALELO (antes era uma após a outra)
   const chaves=Object.keys(map);
@@ -508,6 +512,7 @@ function fallback(k){
   if(k==="formas_recebimento")return ["Presencial","Telefone","E-mail","Formulário eletrônico","WhatsApp","Fala.BR","Outros"];
   if(k==="equivalencias")return [];
   if(k==="bairros")return [];
+  if(k==="ods_metas")return [];
   if(k==="eixos")return [
     {nome:"Economia e renda"},{nome:"Educação, Cultura e Lazer"},
     {nome:"Equipamentos públicos e infraestrutura"},{nome:"Geografia e População"},
@@ -632,15 +637,16 @@ function statsLocal(p){
 // fallback do painel por manifestação: usado só quando a função painel_areas()
 // ainda não existe no banco. Lê as manifestações em páginas e conta no navegador.
 async function agregaManifLocal(){
-  const area={}, sub={}, ods={}, eixo={}; let total=0, from=0; const passo=1000;
+  const area={}, sub={}, ods={}, eixo={}, meta={}; let total=0, from=0; const passo=1000;
   for(let i=0;i<60;i++){ // teto de 60 mil, por segurança
     const {data,error}=await sb.from("manifestacoes")
-      .select("eixo,area,subarea,ods").range(from,from+passo-1);
+      .select("eixo,area,subarea,ods,ods_metas").range(from,from+passo-1);
     if(error||!data||!data.length)break;
     data.forEach(m=>{
       total++;
       const a=(m.area&&m.area.trim())?m.area:"(sem área)"; area[a]=(area[a]||0)+1;
       if(m.eixo&&m.eixo.trim())eixo[m.eixo]=(eixo[m.eixo]||0)+1;
+      (m.ods_metas||[]).forEach(c=>{if(c)meta[c]=(meta[c]||0)+1;});
       if(m.subarea&&m.subarea.trim())sub[m.subarea]=(sub[m.subarea]||0)+1;
       (m.ods||[]).forEach(o=>{const n=Number(o);if(n>=1&&n<=17)ods[n]=(ods[n]||0)+1;});
     });
@@ -649,7 +655,7 @@ async function agregaManifLocal(){
   }
   const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n||10);
   return {total,
-    area:top(area), subarea:top(sub), eixo:top(eixo,13),
+    area:top(area), subarea:top(sub), eixo:top(eixo,13), meta:top(meta,20),
     ods:Object.entries(ods).map(([k,v])=>[Number(k),v]).sort((a,b)=>a[0]-b[0])};
 }
 
@@ -684,12 +690,14 @@ async function renderPainel(){
       if(ma.area && ma.area.length)       S.area=ma.area;
       if(ma.subarea && ma.subarea.length) S.subarea=ma.subarea;
       if(ma.eixo && ma.eixo.length)       S.eixo=ma.eixo;
+      if(ma.meta && ma.meta.length)       S.meta=ma.meta;
       if(ma.ods && ma.ods.length)         S.ods=ma.ods;
     }else{
       // fallback sem a função: agrega no navegador a partir das manifestações
       const ag=await agregaManifLocal();
       if(ag){S.manifestacoes=ag.total; if(ag.area.length)S.area=ag.area;
         if(ag.subarea.length)S.subarea=ag.subarea; if(ag.eixo&&ag.eixo.length)S.eixo=ag.eixo;
+        if(ag.meta&&ag.meta.length)S.meta=ag.meta;
         if(ag.ods.length)S.ods=ag.ods;}
     }
   }catch(e){
@@ -728,7 +736,7 @@ async function renderPainel(){
   const entradasMes=(S.mensal||[]).map(x=>x[1]), conclMes=(S.mensal||[]).map(x=>x[2]);
   const dStatus=S.status||[],dTipo=S.tipo||[],dArea=S.area||[],dOrgao=S.orgao||[],
         dUnidade=S.unidade||[],dServidor=S.servidor||[],dBairro=S.bairro||[],odsPares=S.ods||[],
-        dSubarea=S.subarea||[],dEixo=S.eixo||[];
+        dSubarea=S.subarea||[],dEixo=S.eixo||[],dMeta=S.meta||[];
 
   app.innerHTML=`
     <div class="toolbar"><span class="muted small" style="margin-left:auto">
@@ -757,6 +765,7 @@ async function renderPainel(){
       <div class="card chart-card"><h3>Por eixo temático</h3><p class="cap">Eixos do Plano Diretor — contados por manifestação</p><div class="chart-box tallbox"><canvas id="ch_eixo"></canvas></div></div>
       <div class="card chart-card"><h3>Por área temática</h3><p class="cap">Top 10 áreas — contadas por manifestação</p><div class="chart-box tallbox"><canvas id="ch_area"></canvas></div></div>
       <div class="card chart-card"><h3>Por subárea temática</h3><p class="cap">Top 10 subáreas — contadas por manifestação</p><div class="chart-box tallbox"><canvas id="ch_subarea"></canvas></div></div>
+      <div class="card chart-card"><h3>Por meta ODS</h3><p class="cap">Top 20 metas da Agenda 2030 — contadas por manifestação</p><div class="chart-box tallbox"><canvas id="ch_meta"></canvas></div></div>
       <div class="card chart-card"><h3>Por órgão demandado</h3><p class="cap">Top 8 órgãos</p><div class="chart-box tallbox"><canvas id="ch_orgao"></canvas></div></div>
     </div>
 
@@ -824,6 +833,7 @@ async function renderPainel(){
   mkChart('ch_eixo','bar',dEixo.map(x=>x[0]),dEixo.map(x=>x[1]),{horizontal:true,color:'#6A4CF0'});
   mkChart('ch_area','bar',dArea.map(x=>x[0]),dArea.map(x=>x[1]),{horizontal:true,color:'#0056EF'});
   mkChart('ch_subarea','bar',dSubarea.map(x=>x[0]),dSubarea.map(x=>x[1]),{horizontal:true,color:'#12A5B4'});
+  mkChart('ch_meta','bar',dMeta.map(x=>x[0]),dMeta.map(x=>x[1]),{horizontal:true,color:'#E8823A'});
   mkChart('ch_orgao','bar',dOrgao.map(x=>String(x[0]).split(' — ')[0]),dOrgao.map(x=>x[1]),{horizontal:true,color:'#12A5B4'});
   mkChart('ch_unidade','bar',dUnidade.map(x=>String(x[0]).split(' — ')[0]),dUnidade.map(x=>x[1]),{color:'#EDA704'});
   mkChart('ch_serv','bar',dServidor.map(x=>x[0]),dServidor.map(x=>x[1]),{horizontal:true,color:'#F26522'});
@@ -1260,6 +1270,7 @@ function formProcesso(p){
           <div class="odsbox" data-odsbox="${i}">${
             (AUX.ods||[]).map(o=>`<span class="odsopt ${(m.ods||[]).map(Number).includes(o.numero)?'on':''}" data-ods="${o.numero}" data-i="${i}" title="${esc(o.descricao||'')}">${o.numero} · ${esc(o.nome)}</span>`).join("")
           }</div>
+          <div class="metasbox" data-metasbox="${i}" style="margin-top:8px"></div>
         </div>`).join("");
       // repõe os valores selecionados e monta as subáreas dependentes
       MANIFS.forEach((m,i)=>{
@@ -1274,6 +1285,7 @@ function formProcesso(p){
         if(g("area"))g("area").innerHTML=areaOptsDoEixo(eixoAtual,m.area||"");
         preencheSubarea(i,m.subarea||"");
         mostraDescSub(i);
+        pintaMetas(i);
       });
     }
     const t=$("#manif_total");
@@ -1300,6 +1312,38 @@ function formProcesso(p){
     if(t&&t.descricao){d.textContent=t.descricao;d.classList.add("show");}
     else{d.classList.remove("show");}
   }
+  // desenha as metas dos ODS marcados na manifestação i (várias por manifestação)
+  function pintaMetas(i){
+    const box=$("#manif_list");if(!box)return;
+    const alvo=box.querySelector(`[data-metasbox="${i}"]`);if(!alvo)return;
+    const m=MANIFS[i]||{};
+    const ods=(m.ods||[]).map(Number);
+    const metas=(AUX.ods_metas||[]);
+    const sel=new Set(m.ods_metas||[]);
+    if(!ods.length || !metas.length){
+      alvo.innerHTML = ods.length?"":"";  // sem ODS -> sem metas
+      // limpa metas de ODS que não estão mais marcados
+      if(m.ods_metas&&m.ods_metas.length){
+        m.ods_metas=m.ods_metas.filter(c=>{const mt=metas.find(x=>x.codigo===c);return mt&&ods.includes(Number(mt.ods_numero));});
+      }
+      if(!ods.length){alvo.innerHTML="";return;}
+    }
+    // agrupa por ODS marcado
+    const blocos=ods.map(n=>{
+      const doOds=metas.filter(x=>Number(x.ods_numero)===n);
+      if(!doOds.length)return "";
+      const nomeOds=((AUX.ods||[]).find(o=>o.numero===n)||{}).nome||("ODS "+n);
+      return `<div style="margin:6px 0">
+        <div class="f" style="margin-bottom:4px">Metas do ODS ${n} · ${esc(nomeOds)}</div>
+        <div class="metaschips">${doOds.map(mt=>`
+          <label class="metachip ${sel.has(mt.codigo)?'on':''}" title="${esc(mt.texto)}">
+            <input type="checkbox" data-meta="${esc(mt.codigo)}" data-i="${i}" ${sel.has(mt.codigo)?'checked':''} style="margin-right:5px">
+            <b>${esc(mt.codigo)}</b> · ${esc(mt.texto.length>90?mt.texto.slice(0,90)+'…':mt.texto)}
+          </label>`).join("")}</div>
+      </div>`;
+    }).join("");
+    alvo.innerHTML = blocos?`<label class="f">Metas ODS vinculadas<span class="hint">Marque as metas da Agenda 2030 relacionadas a esta manifestação.</span></label>${blocos}`:"";
+  }
   function marcaOdsDaSubarea(i){
     const box=$("#manif_list");if(!box)return;
     const m=MANIFS[i]||{};
@@ -1310,7 +1354,7 @@ function formProcesso(p){
     m.ods=[...new Set([...(m.ods||[]).map(Number),Number(t.ods)])];
   }
 
-  $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",tipo:"",eixo:"",descricao:"",status:"",area:"",subarea:"",ods:[],lai_situacao:"",resposta_lai:"",lai_motivo:"",motivo_parcial_lai:""});pintaManifs();};
+  $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",tipo:"",eixo:"",descricao:"",status:"",area:"",subarea:"",ods:[],ods_metas:[],lai_situacao:"",resposta_lai:"",lai_motivo:"",motivo_parcial_lai:""});pintaManifs();};
   $("#manif_list").addEventListener("click",e=>{
     const ods=e.target.closest(".odsopt");
     if(ods){
@@ -1318,6 +1362,16 @@ function formProcesso(p){
       ods.classList.toggle("on");
       MANIFS[i].ods=[...$("#manif_list").querySelectorAll(`[data-odsbox="${i}"] .odsopt.on`)]
         .map(x=>Number(x.dataset.ods));
+      pintaMetas(i);
+      return;
+    }
+    const metaChip=e.target.closest("[data-meta]");
+    if(metaChip){
+      const i=Number(metaChip.dataset.i), cod=metaChip.dataset.meta;
+      const set=new Set(MANIFS[i].ods_metas||[]);
+      if(metaChip.checked)set.add(cod); else set.delete(cod);
+      MANIFS[i].ods_metas=[...set];
+      const lab=metaChip.closest(".metachip"); if(lab)lab.classList.toggle("on",metaChip.checked);
       return;
     }
     const dup=e.target.closest("[data-dup]"), del=e.target.closest("[data-del]");
@@ -1347,7 +1401,7 @@ function formProcesso(p){
       const eA=eixoDaArea(el.value);
       if(eA){MANIFS[i].eixo=eA;const selE=$("#manif_list").querySelector(`[data-c="eixo"][data-i="${i}"]`);if(selE)selE.value=eA;}
     }
-    if(c==="subarea"){mostraDescSub(i);marcaOdsDaSubarea(i);}
+    if(c==="subarea"){mostraDescSub(i);marcaOdsDaSubarea(i);pintaMetas(i);}
     if(c==="tipo"){
       const box=$("#manif_list").querySelector(`[data-lai="${i}"]`);
       if(box)box.classList.toggle("hidden",!ehLaiTipo(el.value));
@@ -1360,6 +1414,7 @@ function formProcesso(p){
       .then(({data})=>{
         if(data&&data.length){MANIFS=data.map(m=>({id:m.id,orgao:m.orgao||"",tipo:m.tipo||"",descricao:m.descricao||"",
           status:m.status||"",eixo:m.eixo||"",area:m.area||"",subarea:m.subarea||"",ods:(m.ods||[]).map(Number),
+          ods_metas:Array.isArray(m.ods_metas)?m.ods_metas:[],
           lai_situacao:m.lai_situacao||"",resposta_lai:m.resposta_lai||"",lai_motivo:m.lai_motivo||"",motivo_parcial_lai:m.motivo_parcial_lai||""}));}
         else{const antigos=(p.orgaos&&p.orgaos.length)?p.orgaos:String(p.orgao_demandado||"").split("; ").filter(Boolean);
           MANIFS=antigos.map(o=>({orgao:o,descricao:"",status:"",
@@ -1641,6 +1696,7 @@ function formProcesso(p){
             lai_motivo:(ehLaiTipo(m.tipo)?(m.lai_motivo||null):null),
             motivo_parcial_lai:(ehLaiTipo(m.tipo)?(m.motivo_parcial_lai||null):null),
             eixo:m.eixo||eixoDaArea(m.area||"")||null,
+            ods_metas:(m.ods_metas||[]),
             area:m.area||null,subarea:m.subarea||null,ods:(m.ods||[]).map(Number)}));
           const {error:em}=await sb.from("manifestacoes").insert(linhas);
           if(em)toast("Processo salvo, mas as manifestações falharam: "+em.message);
@@ -2142,6 +2198,7 @@ const AUXDEFS=[
   {key:"eixos",tbl:"aux_eixos",label:"Eixos Temáticos",cols:[["nome","Eixo"],["descricao","Descrição"]]},
   {key:"taxonomia",tbl:"aux_taxonomia",label:"Taxonomia",cols:[["eixo","Eixo"],["area","Área"],["subarea","Subárea"],["descricao","Descrição"],["ods","ODS"]]},
   {key:"ods",tbl:"aux_ods",label:"ODS",cols:[["numero","Nº"],["nome","Objetivo"],["descricao","Descrição"]]},
+  {key:"ods_metas",tbl:"aux_ods_metas",label:"Metas ODS",cols:[["ods_numero","ODS"],["codigo","Meta"],["texto","Descrição"]]},
   {key:"lai_motivos",tbl:"aux_lai_motivos",label:"Motivos LAI",cols:[["situacao","Situação"],["motivo","Motivo"],["descricao","Descrição"]]},
   {key:"lai_situacoes",tbl:"aux_lai_situacoes",label:"Situações LAI",cols:[["nome","Situação"]],simple:true},
   {key:"servidores",tbl:"aux_servidores",label:"Servidores",cols:[["nome","Nome"],["unidade","Unidade"]]},
@@ -2732,6 +2789,7 @@ async function executarImport(novos){
         g.manifs.forEach((m,k)=>manifs.push({processo_id:pid,sequencia:k+1,
           orgao:m.orgao,descricao:m.descricao,tipo:m.tipo,lai_situacao:m.lai_situacao,
           resposta_lai:m.resposta_lai,lai_motivo:m.lai_motivo,motivo_parcial_lai:m.motivo_parcial_lai,eixo:m.eixo,
+          ods_metas:[],
           area:m.area,subarea:m.subarea,ods:m.ods}));
       });
       if(manifs.length){
