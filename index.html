@@ -603,8 +603,8 @@ function statsLocal(p){
   const dias=(a,b)=>{if(!a||!b)return null;const d=(new Date(b)-new Date(a))/86400000;return isFinite(d)?d:null;};
   const durs=p.filter(conc).map(x=>dias(x.data_entrada,dc(x))).filter(d=>d!=null&&d>=0);
   const idades=p.filter(x=>!conc(x)&&x.data_entrada).map(x=>dias(x.data_entrada,today())).filter(d=>d!=null&&d>=0);
-  const cp=p.filter(x=>x.prazo_interno);
-  const noPrazo=x=>conc(x)?((dc(x)||today())<=x.prazo_interno):(today()<=x.prazo_interno);
+  const cp=p.filter(x=>prazoEfetivo(x));
+  const noPrazo=x=>{const pz=prazoEfetivo(x);return conc(x)?((dc(x)||today())<=pz):(today()<=pz);};
   const orgC={};p.forEach(x=>orgaosDe(x).forEach(o=>{orgC[o]=(orgC[o]||0)+1;}));
   const odsC={};p.forEach(x=>(x.ods||[]).forEach(o=>{odsC[o]=(odsC[o]||0)+1;}));
   const meses=[];const base=new Date();
@@ -616,7 +616,7 @@ function statsLocal(p){
     total:p.length, abertos:p.filter(x=>!conc(x)).length, concluidos:p.filter(conc).length,
     externos:p.filter(x=>x.tramitacao_ext).length,
     lai:p.filter(x=>String(x.tipo_demanda||"").includes("LAI")).length,
-    vencidos:p.filter(x=>x.prazo_interno&&x.prazo_interno<today()&&!conc(x)).length,
+    vencidos:p.filter(x=>{const pz=prazoEfetivo(x);return pz&&pz<today()&&!conc(x);}).length,
     fora20:p.filter(x=>!conc(x)&&x.data_entrada&&x.data_entrada<addDays(today(),-20)).length,
     fora30:p.filter(x=>!conc(x)&&x.data_entrada&&x.data_entrada<addDays(today(),-30)).length,
     manifestacoes:p.reduce((s,x)=>s+Math.max(1,orgaosDe(x).length),0),
@@ -898,7 +898,7 @@ async function renderProcessos(){
         <select id="fext"><option value="">Tramitação (todas)</option><option value="sim">Em tramitação externa</option><option value="nao">Dentro da OGM</option></select>
         <select id="fserv"><option value="">Todos os servidores</option>${servOpts}</select>
         <select id="forgao"><option value="">Todos os órgãos</option>${orgOpts}</select>
-        <select id="fprazo"><option value="">Prazo (todos)</option><option value="fora20">Fora do prazo — 20 dias</option><option value="fora30">Fora do prazo — 30 dias (20+10)</option><option value="venc">⚠ Vencidos (art. 13, em aberto)</option><option value="fora">Concluídos fora do prazo</option><option value="dia">Vence em ≤ 3 dias</option><option value="ok">No prazo</option></select>
+        <select id="fprazo"><option value="">Prazo (todos)</option><option value="fora20">Fora do prazo — 20 dias</option><option value="fora30">Fora do prazo — 30 dias (20+10)</option><option value="venc">⚠ Vencidos (art. 13, em aberto)</option><option value="fora">Concluídos fora do prazo</option><option value="prorrog_sem_just">Prorrogado sem justificativa legal</option><option value="prorrog_fora">Prorrogado fora do prazo</option><option value="dia">Vence em ≤ 3 dias</option><option value="ok">No prazo</option></select>
       </div>
       <div class="toolbar">
         <label class="muted small" style="display:flex;align-items:center;gap:6px">Entrada de
@@ -944,7 +944,7 @@ async function renderProcessos(){
 // monta a consulta com TODOS os filtros aplicados no banco
 function queryProcessos(sel,opts){
   // usa a visão vw_processos (com situacao_prazo) quando o filtro de prazo precisa dela
-  const usaView = PRAZO_SRC==="vw_processos" && (filtro.prazo==="venc"||filtro.prazo==="fora"||filtro.prazo==="ok");
+  const usaView = PRAZO_SRC==="vw_processos" && (filtro.prazo==="venc"||filtro.prazo==="fora"||filtro.prazo==="ok"||filtro.prazo==="prorrog_fora");
   let q=sb.from(usaView?"vw_processos":"processos").select(sel,opts);
   if(filtro.status)q=q.eq("status",filtro.status);
   if(filtro.area)q=q.eq("area",filtro.area);
@@ -957,6 +957,16 @@ function queryProcessos(sel,opts){
   if(filtro.prazo==="fora20"||filtro.prazo==="fora30"){
     const dias=filtro.prazo==="fora20"?20:30;
     q=q.lt("data_entrada",addDays(today(),-dias)).not("status","in",'("Concluído","Arquivado")');
+  }
+  // prorrogado SEM justificativa: prorrogado=sim e campo de justificativa vazio
+  if(filtro.prazo==="prorrog_sem_just"){
+    q=q.eq("prorrogado",true).or("prorrogacao_justificativa.is.null,prorrogacao_justificativa.eq.");
+  }
+  // prorrogado FORA do prazo: só a visão consegue comparar prorrogacao_data > prazo_interno
+  if(filtro.prazo==="prorrog_fora" && PRAZO_SRC==="vw_processos"){
+    q=q.eq("prorrog_fora_prazo",true);
+  }else if(filtro.prazo==="prorrog_fora"){
+    q=q.eq("prorrogado",true); // aproximação sem a visão (mostra todos os prorrogados)
   }
   if(PRAZO_SRC==="vw_processos"){
     if(filtro.prazo==="venc")      q=q.eq("situacao_prazo","vencido");
@@ -1005,10 +1015,17 @@ async function abrirProcesso(id){
   formProcesso(data);
 }
 
+// prazo efetivo: o prorrogado quando houver, senão o original. Cobre dados
+// antigos (prazo_prorrogado vazio → usa prazo_interno) e novos (original + prorrogado).
+function prazoEfetivo(p){
+  return (p.prorrogado && p.prazo_prorrogado) ? p.prazo_prorrogado : p.prazo_interno;
+}
 function prazoCell(p){
-  if(!p.prazo_interno)return "—";
-  const venc=p.prazo_interno<today() && !["Concluído","Arquivado"].includes(p.status);
-  return `<span class="${venc?'prazo-venc':'prazo-ok'}">${fmtDate(p.prazo_interno)}${venc?' ⚠':''}</span>`;
+  const pz=prazoEfetivo(p);
+  if(!pz)return "—";
+  const venc=pz<today() && !["Concluído","Arquivado"].includes(p.status);
+  const marca=p.prorrogado?' <span title="Prorrogado" style="color:#b45309">⏱</span>':'';
+  return `<span class="${venc?'prazo-venc':'prazo-ok'}">${fmtDate(pz)}${venc?' ⚠':''}</span>${marca}`;
 }
 function statusChip(s){
   const map={"Concluído":"green","Arquivado":"gray","Em análise":"blue","Aguardando informações":"amber",
@@ -1060,7 +1077,10 @@ function formProcesso(p){
           <div><label class="f">Número SEI<span class="hint">O sistema avisa se já existir um processo com este número.</span></label>
             <input id="numero_sei" value="${esc(p.numero_sei||'')}"><div class="warn" id="sei_warn">Já existe um processo com este número SEI.</div></div>
           <div><label class="f">Data do protocolo (início da contagem)<span class="hint">Vem preenchida com a data de hoje, mas pode ser anterior se o processo já havia sido protocolado no SEI. É a partir dela que o prazo é contado.</span></label>
-            <input type="date" id="data_entrada" value="${esc(defEntrada)}"></div>
+            <div style="display:flex;gap:8px">
+              <input type="date" id="data_entrada" value="${esc(defEntrada)}" style="flex:1">
+              <input type="time" id="hora_protocolo" value="${esc(p.hora_protocolo||'')}" title="Hora do registro do protocolo" style="width:120px">
+            </div></div>
         </div>
         <div class="frow">
           <div><label class="f">Tipo de demanda<span class="hint">Tipo principal do processo. Os detalhes de LAI (situação e resposta) ficam em cada manifestação.</span></label><select id="tipo_demanda">${tdOpt}</select></div>
@@ -1089,6 +1109,19 @@ function formProcesso(p){
             <span>Prorrogação (+10 dias)<span class="hint" style="font-weight:500">A contagem reinicia no dia subsequente ao vencimento original (inciso III).</span></span></label></div>
         </div>
         <div class="desc-sub show" id="memoria_prazo" style="margin-top:0"></div>
+        <div id="prorrog_box" class="${defProrrog?'':'hidden'}" style="background:#fff7ed;border:1px solid #fcd9a8;border-radius:10px;padding:12px;margin-top:10px">
+          <label class="f" style="color:#b45309">Dados da prorrogação</label>
+          <div class="frow three">
+            <div><label class="f">Data da prorrogação</label>
+              <input type="date" id="prorrogacao_data" value="${esc(p.prorrogacao_data||'')}"></div>
+            <div><label class="f">Hora da prorrogação</label>
+              <input type="time" id="prorrogacao_hora" value="${esc(p.prorrogacao_hora||'')}"></div>
+            <div><label class="f">Novo prazo (data limite prorrogada)</label>
+              <input type="date" id="prazo_prorrogado" value="${esc(p.prazo_prorrogado||'')}"></div>
+          </div>
+          <div class="frow one"><div><label class="f">Justificativa legal da prorrogação<span class="hint">Fundamento da prorrogação. Sem este preenchimento, o processo entra no filtro "prorrogado sem justificativa legal".</span></label>
+            <textarea id="prorrogacao_justificativa" placeholder="Descreva o fundamento legal da prorrogação">${esc(p.prorrogacao_justificativa||'')}</textarea></div></div>
+        </div>
         <label class="check"><input type="checkbox" id="tramitacao_ext" ${p.tramitacao_ext?'checked':''}>
           <span>Tramitação externa — processo saiu da OGM<span class="hint" style="font-weight:500">Marque quando o processo sair da OGM (vai para outro órgão). Desmarque quando retornar.</span></span></label>
         <div class="frow one" id="ultima_wrap" style="margin-top:12px">
@@ -1126,7 +1159,19 @@ function formProcesso(p){
         <div class="frow three">
           <div><label class="f">Tipo de documento</label><select id="doc_tipo">${docOpt}</select></div>
           <div><label class="f">Número do documento</label><input id="doc_numero" value="${esc(p.doc_numero||'')}"></div>
-          <div><label class="f">Data de saída</label><input type="date" id="doc_data_saida" value="${esc(p.doc_data_saida||'')}"></div>
+          <div><label class="f">Data de saída</label>
+            <div style="display:flex;gap:8px">
+              <input type="date" id="doc_data_saida" value="${esc(p.doc_data_saida||'')}" style="flex:1">
+              <input type="time" id="doc_hora_saida" value="${esc(p.doc_hora_saida||'')}" title="Hora de saída" style="width:110px">
+            </div></div>
+        </div>
+        <div class="frow" style="margin-top:4px">
+          <div><label class="f">Data da resposta conclusiva<span class="hint">Data em que o processo foi efetivamente respondido/concluído ao cidadão.</span></label>
+            <div style="display:flex;gap:8px">
+              <input type="date" id="resposta_conclusiva_data" value="${esc(p.resposta_conclusiva_data||'')}" style="flex:1">
+              <input type="time" id="resposta_conclusiva_hora" value="${esc(p.resposta_conclusiva_hora||'')}" title="Hora da resposta conclusiva" style="width:110px">
+            </div></div>
+          <div></div>
         </div>
         <label class="check"><input type="checkbox" id="net_acatada" ${p.net_acatada?'checked':''}>
           <span>Nota de Esclarecimento Técnico acatada <span class="hint">Marque quando a NET emitida pela OGM for acatada pelo órgão. Alimenta o gráfico do Painel.</span></span></label>
@@ -1548,9 +1593,16 @@ function formProcesso(p){
       : "Informe a data do protocolo para o sistema calcular o prazo.";
   }
   function recalcPrazo(){
-    const base=$("#data_entrada").value;if(!base){pintaMemoria();return;}
-    const r=$("#prorrogado").checked?prazoProrrogado(base,20,10):prazoLegal(base,20);
-    if(r)$("#prazo_interno").value=r.fim;
+    const base=$("#data_entrada").value;
+    const prorr=$("#prorrogado").checked;
+    const box=$("#prorrog_box"); if(box)box.classList.toggle("hidden",!prorr);
+    if(!base){pintaMemoria();return;}
+    const orig=prazoLegal(base,20);
+    if(orig)$("#prazo_interno").value=orig.fim;            // prazo_interno = SEMPRE o original (20 dias)
+    if(prorr){
+      const pr=prazoProrrogado(base,20,10);
+      if(pr && $("#prazo_prorrogado") && !$("#prazo_prorrogado").value) $("#prazo_prorrogado").value=pr.fim; // novo limite (30)
+    }
     pintaMemoria();
   }
   $("#data_entrada").addEventListener("change",recalcPrazo);
@@ -1650,6 +1702,14 @@ function formProcesso(p){
       unidade_resp:$("#unidade_resp").value||null,
       prazo_interno:$("#prazo_interno").value||null,
       prorrogado:$("#prorrogado").checked,
+      hora_protocolo:$("#hora_protocolo").value||null,
+      prorrogacao_data:($("#prorrogado").checked?($("#prorrogacao_data").value||null):null),
+      prorrogacao_hora:($("#prorrogado").checked?($("#prorrogacao_hora").value||null):null),
+      prazo_prorrogado:($("#prorrogado").checked?($("#prazo_prorrogado").value||null):null),
+      prorrogacao_justificativa:($("#prorrogado").checked?($("#prorrogacao_justificativa").value.trim()||null):null),
+      resposta_conclusiva_data:$("#resposta_conclusiva_data").value||null,
+      resposta_conclusiva_hora:$("#resposta_conclusiva_hora").value||null,
+      doc_hora_saida:$("#doc_hora_saida").value||null,
       predio:$("#predio").value||null,
       net_acatada:$("#net_acatada").checked,
       tramitacao_ext:$("#tramitacao_ext").checked,
