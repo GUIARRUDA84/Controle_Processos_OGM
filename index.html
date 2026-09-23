@@ -1393,18 +1393,20 @@ function formProcesso(p){
       (ods.length && !metas.length ? `<div class="warn show" style="margin-top:6px">As metas dos ODS ainda não estão carregadas. Rode o script <b>ods_metas.sql</b> no Supabase e recarregue a página (Ctrl+Shift+R).</div>` : "");
   }
   function marcaOdsDaSubarea(i){
-    const box=$("#manif_list");if(!box)return;
     const m=MANIFS[i]||{};
     const t=AUX.taxonomia.find(x=>x.area===m.area&&x.subarea===m.subarea);
     if(!t)return;
-    if(t.ods){
-      const chip=box.querySelector(`[data-odsbox="${i}"] .odsopt[data-ods="${t.ods}"]`);
-      if(chip)chip.classList.add("on");
-      m.ods=[...new Set([...(m.ods||[]).map(Number),Number(t.ods)])];
-    }
+    if(t.ods) m.ods=[...new Set([...(m.ods||[]).map(Number),Number(t.ods)])];
     // metas da subárea (várias) → preenche automaticamente; o ouvidor pode ajustar depois
     const metasSub=Array.isArray(t.ods_metas)?t.ods_metas:[];
     if(metasSub.length) m.ods_metas=[...new Set([...(m.ods_metas||[]),...metasSub])];
+  }
+  // reflete m.ods no destaque dos chips do box de ODS
+  function syncOdsBox(i){
+    const box=$("#manif_list");if(!box)return;
+    const ods=(MANIFS[i].ods||[]).map(Number);
+    box.querySelectorAll(`[data-odsbox="${i}"] .odsopt`).forEach(ch=>
+      ch.classList.toggle("on", ods.includes(Number(ch.dataset.ods))));
   }
 
   $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",tipo:"",eixo:"",descricao:"",status:"",area:"",subarea:"",ods:[],ods_metas:[],lai_situacao:"",resposta_lai:"",lai_motivo:"",motivo_parcial_lai:""});pintaManifs();};
@@ -1443,18 +1445,24 @@ function formProcesso(p){
     const i=Number(el.dataset.i), c=el.dataset.c;
     MANIFS[i][c]=el.value;
     if(c==="eixo"){
-      MANIFS[i].area="";MANIFS[i].subarea="";
+      MANIFS[i].area="";MANIFS[i].subarea="";MANIFS[i].ods=[];MANIFS[i].ods_metas=[];
       const selA=$("#manif_list").querySelector(`[data-c="area"][data-i="${i}"]`);
       if(selA)selA.innerHTML=areaOptsDoEixo(el.value,"");
-      preencheSubarea(i,"");mostraDescSub(i);
+      preencheSubarea(i,"");mostraDescSub(i);syncOdsBox(i);pintaMetas(i);
     }
     if(c==="area"){
-      MANIFS[i].subarea="";preencheSubarea(i,"");mostraDescSub(i);
+      // troca de área zera a classificação derivada (ODS e metas) para não acumular
+      MANIFS[i].subarea="";MANIFS[i].ods=[];MANIFS[i].ods_metas=[];
+      preencheSubarea(i,"");mostraDescSub(i);syncOdsBox(i);pintaMetas(i);
       // se a área tem eixo definido, preenche o eixo automaticamente
       const eA=eixoDaArea(el.value);
       if(eA){MANIFS[i].eixo=eA;const selE=$("#manif_list").querySelector(`[data-c="eixo"][data-i="${i}"]`);if(selE)selE.value=eA;}
     }
-    if(c==="subarea"){mostraDescSub(i);marcaOdsDaSubarea(i);pintaMetas(i);}
+    if(c==="subarea"){
+      // limpa o ODS e as metas da subárea anterior, depois deduz os da nova
+      MANIFS[i].ods=[];MANIFS[i].ods_metas=[];
+      mostraDescSub(i);marcaOdsDaSubarea(i);syncOdsBox(i);pintaMetas(i);
+    }
     if(c==="tipo"){
       const box=$("#manif_list").querySelector(`[data-lai="${i}"]`);
       if(box)box.classList.toggle("hidden",!ehLaiTipo(el.value));
