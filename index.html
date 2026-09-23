@@ -1396,10 +1396,15 @@ function formProcesso(p){
     const box=$("#manif_list");if(!box)return;
     const m=MANIFS[i]||{};
     const t=AUX.taxonomia.find(x=>x.area===m.area&&x.subarea===m.subarea);
-    if(!t||!t.ods)return;
-    const chip=box.querySelector(`[data-odsbox="${i}"] .odsopt[data-ods="${t.ods}"]`);
-    if(chip)chip.classList.add("on");
-    m.ods=[...new Set([...(m.ods||[]).map(Number),Number(t.ods)])];
+    if(!t)return;
+    if(t.ods){
+      const chip=box.querySelector(`[data-odsbox="${i}"] .odsopt[data-ods="${t.ods}"]`);
+      if(chip)chip.classList.add("on");
+      m.ods=[...new Set([...(m.ods||[]).map(Number),Number(t.ods)])];
+    }
+    // metas da subárea (várias) → preenche automaticamente; o ouvidor pode ajustar depois
+    const metasSub=Array.isArray(t.ods_metas)?t.ods_metas:[];
+    if(metasSub.length) m.ods_metas=[...new Set([...(m.ods_metas||[]),...metasSub])];
   }
 
   $("#add_manif").onclick=()=>{MANIFS.push({orgao:"",tipo:"",eixo:"",descricao:"",status:"",area:"",subarea:"",ods:[],ods_metas:[],lai_situacao:"",resposta_lai:"",lai_motivo:"",motivo_parcial_lai:""});pintaManifs();};
@@ -2272,7 +2277,7 @@ function formRecomendacao(processoId){
 /* ================= TABELAS AUXILIARES ================= */
 const AUXDEFS=[
   {key:"eixos",tbl:"aux_eixos",label:"Eixos Temáticos",cols:[["nome","Eixo"],["descricao","Descrição"]]},
-  {key:"taxonomia",tbl:"aux_taxonomia",label:"Taxonomia",cols:[["eixo","Eixo"],["area","Área"],["subarea","Subárea"],["descricao","Descrição"],["ods","ODS"]]},
+  {key:"taxonomia",tbl:"aux_taxonomia",label:"Taxonomia",cols:[["eixo","Eixo"],["area","Área"],["subarea","Subárea"],["descricao","Descrição"],["ods","ODS"],["ods_metas","Metas ODS"]]},
   {key:"ods",tbl:"aux_ods",label:"ODS",cols:[["numero","Nº"],["nome","Objetivo"],["descricao","Descrição"]]},
   {key:"ods_metas",tbl:"aux_ods_metas",label:"Metas ODS",cols:[["ods_numero","ODS"],["codigo","Meta"],["texto","Descrição"]]},
   {key:"lai_motivos",tbl:"aux_lai_motivos",label:"Motivos LAI",cols:[["situacao","Situação"],["motivo","Motivo"],["descricao","Descrição"]]},
@@ -2368,7 +2373,7 @@ async function drawAuxTable(){
     <div class="toolbar"><span class="muted small">${rows.length} registro(s)</span>
       <button class="btn primary sm" id="auxadd" style="margin-left:auto">+ Adicionar</button></div>
     <div class="tblwrap"><table><thead><tr>${def.cols.map(c=>`<th>${c[1]}</th>`).join("")}<th></th></tr></thead>
-    <tbody>${rows.length?rows.map(r=>`<tr>${def.cols.map(c=>`<td>${esc(r[c[0]])}</td>`).join("")}
+    <tbody>${rows.length?rows.map(r=>`<tr>${def.cols.map(c=>`<td>${c[0]==='ods_metas'?esc((Array.isArray(r[c[0]])?r[c[0]]:[]).join(', ')):esc(r[c[0]])}</td>`).join("")}
       <td style="white-space:nowrap"><button class="btn ghost sm" data-edit="${r.id}">Editar</button>
       <button class="btn danger sm" data-del="${r.id}">Excluir</button></td></tr>`).join("")
       :`<tr><td colspan="${def.cols.length+1}"><div class="empty">Vazia. Use <b>Popular dados iniciais</b> ou <b>+ Adicionar</b>.</div></td></tr>`}</tbody></table></div>`;
@@ -2379,19 +2384,43 @@ async function drawAuxTable(){
     await sb.from(def.tbl).delete().eq("id",b.dataset.del);await loadAux();drawAuxTable();
   });
 }
+// checkboxes das metas de um ODS (usado no editor da taxonomia)
+function metasCheck(odsNum,selecionadas){
+  const n=Number(odsNum), sel=new Set(Array.isArray(selecionadas)?selecionadas:[]);
+  const metas=(AUX.ods_metas||[]).filter(x=>Number(x.ods_numero)===n);
+  if(!n) return `<p class="muted small" style="margin:0">Defina o ODS acima para listar as metas.</p>`;
+  if(!metas.length) return `<p class="muted small" style="margin:0">Sem metas cadastradas para o ODS ${n} (rode ods_metas.sql).</p>`;
+  return metas.map(mt=>`<label class="metachip ${sel.has(mt.codigo)?'on':''}" style="margin-bottom:4px" title="${esc(mt.texto)}">
+    <input type="checkbox" data-metacod="${esc(mt.codigo)}" ${sel.has(mt.codigo)?'checked':''}>
+    <span class="mtxt"><b>${esc(mt.codigo)}</b> · ${esc(mt.texto)}</span></label>`).join("");
+}
 function formAux(def,row){
   row=row||{};const isEdit=!!row.id;
   modalRoot.innerHTML=`<div class="overlay"><div class="modal" style="max-width:600px">
     <div class="modal-head"><h3>${isEdit?'Editar':'Adicionar'} · ${def.label}</h3><button class="x" id="mx">×</button></div>
     <div class="modal-body">${def.cols.map(c=>`<div class="frow one"><div><label class="f">${c[1]}</label>
-      ${c[0]==='descricao'?`<textarea id="c_${c[0]}">${esc(row[c[0]]||'')}</textarea>`
+      ${c[0]==='ods_metas'
+        ?`<div id="c_ods_metas_box" style="border:1px solid var(--linha);border-radius:8px;padding:8px;max-height:220px;overflow:auto">${metasCheck(row.ods,row.ods_metas)}</div>`
+        :c[0]==='descricao'?`<textarea id="c_${c[0]}">${esc(row[c[0]]||'')}</textarea>`
         :`<input id="c_${c[0]}" value="${esc(row[c[0]]??'')}">`}</div></div>`).join("")}</div>
     <div class="modal-foot"><button class="btn ghost" id="cancel">Cancelar</button><button class="btn primary" id="save">Salvar</button></div>
   </div></div>`;
   const close=()=>modalRoot.innerHTML="";
   $("#mx").onclick=close;$("#cancel").onclick=close;
+  // ao mudar o ODS, atualiza a lista de metas disponíveis
+  if($("#c_ods") && $("#c_ods_metas_box")){
+    $("#c_ods").addEventListener("input",()=>{
+      const marcadas=[...modalRoot.querySelectorAll('#c_ods_metas_box input[data-metacod]:checked')].map(x=>x.dataset.metacod);
+      $("#c_ods_metas_box").innerHTML=metasCheck($("#c_ods").value,marcadas);
+    });
+  }
   $("#save").onclick=async()=>{
-    const rec={};def.cols.forEach(c=>{let v=$("#c_"+c[0]).value;if((c[0]==='numero'||c[0]==='ods')&&v!=='')v=Number(v);rec[c[0]]=v===''?null:v;});
+    const rec={};def.cols.forEach(c=>{
+      if(c[0]==='ods_metas'){
+        rec.ods_metas=[...modalRoot.querySelectorAll('#c_ods_metas_box input[data-metacod]:checked')].map(x=>x.dataset.metacod);
+        return;
+      }
+      let v=$("#c_"+c[0]).value;if((c[0]==='numero'||c[0]==='ods')&&v!=='')v=Number(v);rec[c[0]]=v===''?null:v;});
     let res=isEdit?await sb.from(def.tbl).update(rec).eq("id",row.id):await sb.from(def.tbl).insert(rec);
     if(res.error){toast("Erro: "+res.error.message);return;}
     close();await loadAux();drawAuxTable();toast("Salvo.");
