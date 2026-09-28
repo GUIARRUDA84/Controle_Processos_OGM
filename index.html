@@ -1269,7 +1269,7 @@ function formProcesso(p){
   const tipoManifOpts=[...(AUX.tipos_demanda||[])].sort(byPt()).map(t=>`<option>${esc(t)}</option>`).join("");
   const laiSitManifOpts=[...(AUX.lai_situacoes||SEED.lai_situacoes||[])].sort(byPt()).map(s=>`<option>${esc(s)}</option>`).join("");
   const ehLaiTipo=(t)=>/lai/i.test(t||"");
-  const eixoOpts=[...(AUX.eixos||[])].map(e=>`<option>${esc(e.nome)}</option>`).join("");
+  const eixoOpts=[...(AUX.eixos||[])].sort(byPt('nome')).map(e=>`<option>${esc(e.nome)}</option>`).join("");
   // normaliza para comparar eixos: ignora acento, tipo de traço, espaços e caixa
   const normEixo=s=>String(s||"").normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\u2010-\u2015\-]/g,'-').replace(/\s+/g,' ').trim().toLowerCase();
   // devolve o nome canônico do eixo (como está no seletor), a partir de um valor que pode divergir
@@ -1370,7 +1370,8 @@ function formProcesso(p){
     const selS=box.querySelector(`[data-c="subarea"][data-i="${i}"]`);
     if(!selA||!selS)return;
     const area=selA.value;
-    const subs=AUX.taxonomia.filter(t=>t.area===area);
+    const subs=AUX.taxonomia.filter(t=>t.area===area)
+      .slice().sort((a,b)=>String(a.subarea).localeCompare(String(b.subarea),"pt",{sensitivity:"base"}));
     selS.innerHTML=`<option value="">${area?'Selecione…':'Selecione a área primeiro'}</option>`+
       subs.map(s=>`<option>${esc(s.subarea)}</option>`).join("");
     if(valor)selS.value=valor;
@@ -2404,7 +2405,21 @@ function formVincularEixos(){
 async function drawAuxTable(){
   const def=AUXDEFS.find(d=>d.key===auxTab);
   const {data,error}=await sb.from(def.tbl).select("*");
-  const rows=error?[]:(data||[]);
+  let rows=error?[]:(data||[]);
+  // ordena sempre em ordem alfabética (ou numérica onde faz sentido), para que
+  // itens recém-inseridos apareçam no lugar certo, e não no fim da lista
+  const ordCols={taxonomia:["area","subarea"],ods:["numero"],ods_metas:["ods_numero","codigo"],
+    lai_motivos:["situacao","motivo"],unidades:["sigla"],orgaos:["sigla"],
+    feriados:["data"],equivalencias:["tipo","de"]}[def.key] || [def.cols[0][0]];
+  const numCol=new Set(["numero","ods_numero"]);
+  rows=rows.slice().sort((a,b)=>{
+    for(const c of ordCols){
+      const d = numCol.has(c) ? (Number(a[c])||0)-(Number(b[c])||0)
+        : String(a[c]==null?"":a[c]).localeCompare(String(b[c]==null?"":b[c]),"pt",{sensitivity:"base"});
+      if(d)return d;
+    }
+    return 0;
+  });
   const body=$("#auxbody");
   body.innerHTML=`
     <div class="toolbar"><span class="muted small">${rows.length} registro(s)</span>
