@@ -209,6 +209,14 @@
   .avlin .t{flex:1;min-width:200px}
   .avlin .t b{display:block;font-size:13.5px}
   .avlin .t .m{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .totbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px;padding:13px 16px;
+    border:1px solid var(--linha);border-radius:11px;background:#f7f9fe}
+  .totbar .tb-n{display:flex;align-items:baseline;gap:7px}
+  .totbar .tb-n b{font-size:26px;font-weight:800;color:var(--azul2);line-height:1}
+  .totbar .tb-n span{font-size:12.5px;color:var(--muted);font-weight:600}
+  .totbar .tb-d{font-size:12px;color:var(--muted);flex:1;min-width:160px;line-height:1.5}
+  .totbar .tb-d b{color:#374260}
+  .totbar .tb-pg{display:flex;align-items:center;gap:8px;margin-left:auto}
   .sino{margin-left:auto;position:relative;width:42px;height:42px;border-radius:11px;border:1px solid #e2e7f3;
     background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;padding:0}
   .sino:hover{background:#f2f6ff;border-color:#cfdcff}
@@ -1191,6 +1199,16 @@ function abrirMapaAmpliado(){
 let filtro={q:"",status:"",tipo:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};
 let buscaTimer=null;
 let PRAZO_SRC=null; // "vw_processos" se a visão existir; senão "processos"
+// descobre uma vez se a função processos_por_tipo() existe no banco
+async function fonteTipo(){
+  if(TIPO_RPC!==null)return TIPO_RPC;
+  try{
+    const {error}=await sb.rpc("processos_por_tipo",{p_tipo:"__teste__"})
+      .select("id").limit(1);
+    TIPO_RPC = !error;
+  }catch(e){ TIPO_RPC=false; }
+  return TIPO_RPC;
+}
 async function fontePrazo(){
   if(PRAZO_SRC)return PRAZO_SRC;
   try{
@@ -1236,10 +1254,14 @@ async function renderProcessos(){
           <tbody id="ptbody"><tr><td colspan="10"><div class="empty">Carregando…</div></td></tr></tbody>
         </table>
       </div>
-      <div class="toolbar" style="margin-top:12px">
-        <button class="btn ghost sm" id="pgprev">◀ Anterior</button>
-        <span class="muted small" id="pginfo"></span>
-        <button class="btn ghost sm" id="pgnext">Próxima ▶</button>
+      <div class="totbar" id="totbar">
+        <div class="tb-n"><b id="tb_total">—</b><span>processo(s) no filtro atual</span></div>
+        <div class="tb-d" id="tb_detalhe"></div>
+        <div class="tb-pg">
+          <button class="btn ghost sm" id="pgprev">◀ Anterior</button>
+          <span class="muted small" id="pginfo"></span>
+          <button class="btn ghost sm" id="pgnext">Próxima ▶</button>
+        </div>
       </div>
     </div>`;
   $("#novo").onclick=()=>formProcesso();
@@ -1253,6 +1275,11 @@ async function renderProcessos(){
   bind("#fserv","servidor");bind("#forgao","orgao");bind("#fprazo","prazo");
   bind("#fde","de");bind("#fate","ate");
   await fontePrazo();
+  await fonteTipo();
+  if(TIPO_RPC===false){
+    const el=$("#ftipo");
+    if(el)el.title="Para contar também as tipologias registradas nas manifestações, rode o script filtro_tipologia.sql no Supabase.";
+  }
   // avisa se o filtro "Concluídos fora do prazo" precisar da visão ainda não criada
   $("#fprazo").addEventListener("change",()=>{
     if(filtro.prazo==="fora" && PRAZO_SRC!=="vw_processos")
@@ -1264,13 +1291,23 @@ async function renderProcessos(){
   await fetchRows();
 }
 
-// monta a consulta com TODOS os filtros aplicados no banco
+// a tipologia existe em dois níveis: no cabeçalho do processo e em cada
+// manifestação. A função processos_por_tipo() cobre os dois e ainda tolera
+// variações de acento e caixa vindas das importações. Se ela ainda não existir
+// no banco, o sistema volta ao filtro antigo e avisa na tela.
+let TIPO_RPC=null;   // null = não testado, true = disponível, false = ausente
 function queryProcessos(sel,opts){
   // usa a visão vw_processos (com situacao_prazo) quando o filtro de prazo precisa dela
-  const usaView = PRAZO_SRC==="vw_processos" && (filtro.prazo==="venc"||filtro.prazo==="fora"||filtro.prazo==="ok"||filtro.prazo==="prorrog_fora");
-  let q=sb.from(usaView?"vw_processos":"processos").select(sel,opts);
+  const precisaView = (filtro.prazo==="venc"||filtro.prazo==="fora"||filtro.prazo==="ok"||filtro.prazo==="prorrog_fora");
+  const usaView = PRAZO_SRC==="vw_processos" && precisaView && !(filtro.tipo && TIPO_RPC);
+  let q;
+  if(filtro.tipo && TIPO_RPC){
+    q=sb.rpc("processos_por_tipo",{p_tipo:filtro.tipo},opts||{}).select(sel);
+  }else{
+    q=sb.from(usaView?"vw_processos":"processos").select(sel,opts);
+    if(filtro.tipo)q=q.eq("tipo_demanda",filtro.tipo);
+  }
   if(filtro.status)q=q.eq("status",filtro.status);
-  if(filtro.tipo)q=q.eq("tipo_demanda",filtro.tipo);
   if(filtro.area)q=q.eq("area",filtro.area);
   if(filtro.servidor)q=q.eq("servidor",filtro.servidor);
   if(filtro.ext==="sim")q=q.eq("tramitacao_ext",true);
@@ -1293,7 +1330,7 @@ function queryProcessos(sel,opts){
     q=q.eq("prorrogado",true); // aproximação sem a visão (mostra todos os prorrogados)
   }
   if(filtro.prazo==="semprazo"){ q=q.eq("sem_prazo",true); }
-  if(PRAZO_SRC==="vw_processos"){
+  if(PRAZO_SRC==="vw_processos" && usaView){
     if(filtro.prazo==="venc")      q=q.eq("situacao_prazo","vencido");
     else if(filtro.prazo==="fora") q=q.eq("situacao_prazo","concluido_fora_prazo");
     else if(filtro.prazo==="ok")   q=q.eq("situacao_prazo","no_prazo");
@@ -1324,6 +1361,7 @@ async function fetchRows(){
   const c=$("#fcount");if(c)c.textContent=PG.total+" processo(s)";
   const pages=Math.max(1,Math.ceil(PG.total/PG.size));
   const pi=$("#pginfo");if(pi)pi.textContent=`Página ${PG.page+1} de ${pages}`;
+  pintarTotal(rows);
   const pv=$("#pgprev"),pn=$("#pgnext");
   if(pv)pv.disabled=PG.page===0;
   if(pn)pn.disabled=(PG.page+1)>=pages;
@@ -1331,6 +1369,52 @@ async function fetchRows(){
     if(e.target.closest("a"))return;
     abrirProcesso(tr.dataset.id);
   });
+}
+
+/* rodapé da lista: total filtrado, com o detalhamento que a página já tem */
+async function pintarTotal(rows){
+  const tt=$("#tb_total"); if(!tt)return;
+  tt.textContent=PG.total.toLocaleString("pt-BR");
+  const ini=PG.total?PG.page*PG.size+1:0;
+  const fim=Math.min(PG.total,(PG.page+1)*PG.size);
+  const ativos=[];
+  if(filtro.q)       ativos.push(`busca "${esc(filtro.q)}"`);
+  if(filtro.status)  ativos.push(esc(filtro.status));
+  if(filtro.tipo)    ativos.push(esc(filtro.tipo));
+  if(filtro.area)    ativos.push(esc(filtro.area));
+  if(filtro.servidor)ativos.push(esc(filtro.servidor));
+  if(filtro.orgao)   ativos.push(esc(filtro.orgao));
+  if(filtro.ext==="sim")ativos.push("em tramitação externa");
+  if(filtro.ext==="nao")ativos.push("dentro da OGM");
+  if(filtro.prazo){
+    const rot={fora20:"fora do prazo de 20 dias",fora30:"fora do prazo de 30 dias",
+      venc:"vencidos",fora:"concluídos fora do prazo",ok:"no prazo",dia:"vencem em até 3 dias",
+      semprazo:"sem prazo aplicável",prorrog_sem_just:"prorrogados sem justificativa",
+      prorrog_fora:"prorrogados fora do prazo"}[filtro.prazo];
+    if(rot)ativos.push(rot);
+  }
+  if(filtro.de||filtro.ate)
+    ativos.push(`entrada ${filtro.de?fmtDate(filtro.de):"desde o início"} a ${filtro.ate?fmtDate(filtro.ate):"hoje"}`);
+
+  const partes=[];
+  partes.push(PG.total?`Exibindo <b>${ini}</b> a <b>${fim}</b>.`:"Nenhum processo neste recorte.");
+  if(ativos.length)partes.push(`Filtros: ${ativos.join(" · ")}.`);
+  else partes.push("Sem filtros — este é o total da base.");
+  if(filtro.tipo && TIPO_RPC)
+    partes.push("A tipologia considera o cabeçalho do processo e as manifestações.");
+  if(filtro.tipo && TIPO_RPC===false)
+    partes.push("<b style='color:#b45309'>Contagem parcial:</b> só o cabeçalho do processo. Rode filtro_tipologia.sql no Supabase para incluir as manifestações.");
+  $("#tb_detalhe").innerHTML=partes.join("<br>");
+
+  // soma das manifestações do recorte, quando houver filtro ativo
+  if(ativos.length && PG.total && PG.total<=5000){
+    try{
+      const {data}=await queryProcessos("n_manifestacoes").range(0,4999);
+      const soma=(data||[]).reduce((a,x)=>a+(x.n_manifestacoes||1),0);
+      if(soma)$("#tb_detalhe").innerHTML=partes.concat(
+        [`Somam <b>${soma.toLocaleString("pt-BR")}</b> manifestação(ões).`]).join("<br>");
+    }catch(e){}
+  }
 }
 
 // a lista traz só as colunas leves; ao abrir, busca o registro completo
