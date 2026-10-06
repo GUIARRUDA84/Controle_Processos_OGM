@@ -32,6 +32,66 @@
     padding:12px 16px;cursor:pointer;border-bottom:3px solid transparent}
   nav button:hover{color:#fff}
   nav button.on{color:#fff;border-bottom-color:var(--amarelo)}
+  .sino{margin-left:auto;position:relative;width:42px;height:42px;border-radius:11px;border:1px solid #e2e7f3;
+    background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;padding:0}
+  .sino:hover{background:#f2f6ff;border-color:#cfdcff}
+  .sino svg{width:21px;height:21px;fill:#5a6480}
+  .sino:hover svg{fill:var(--azul)}
+  .sino.tem svg{fill:var(--azul)}
+  .sino .bg{display:none;position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 5px;
+    border-radius:10px;background:var(--vermelho);color:#fff;font-size:11px;font-weight:800;
+    line-height:19px;text-align:center;border:2px solid #fff;box-sizing:content-box}
+  .sino .bg.show{display:block}
+  .sino.tem::after{content:"";position:absolute;inset:-4px;border-radius:14px;
+    border:2px solid rgba(226,59,46,.35);animation:pulso 2.4s ease-out infinite}
+  @keyframes pulso{0%{transform:scale(.92);opacity:.9}70%{transform:scale(1.12);opacity:0}100%{opacity:0}}
+  .sinowrap{position:fixed;inset:0;z-index:80}
+  .sinopanel{position:absolute;top:72px;right:20px;width:min(430px,calc(100vw - 28px));
+    max-height:min(620px,calc(100vh - 100px));background:#fff;border:1px solid var(--linha);
+    border-radius:14px;box-shadow:0 20px 56px rgba(10,25,70,.26);display:flex;flex-direction:column;
+    overflow:hidden;animation:cai .14s ease-out}
+  @keyframes cai{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+  .sinopanel .hd{padding:14px 18px;border-bottom:1px solid var(--linha);display:flex;
+    align-items:center;gap:10px;flex-wrap:wrap}
+  .sinopanel .hd h3{margin:0;font-size:15px;flex:1}
+  .sinopanel .tabs{display:flex;gap:5px;padding:10px 18px 0;flex-wrap:wrap}
+  .sinopanel .tabs button{border:1px solid var(--linha);background:#fff;border-radius:16px;
+    padding:5px 11px;font-size:11.5px;font-weight:700;cursor:pointer;color:#5a6480;font-family:inherit}
+  .sinopanel .tabs button.on{background:var(--azul);color:#fff;border-color:var(--azul)}
+  .sinopanel .lista{flex:1;overflow:auto;padding:12px 14px 14px}
+  .sinopanel .ft{border-top:1px solid var(--linha);padding:10px 14px;display:flex;gap:8px;
+    justify-content:space-between;background:#fafbfe;flex-wrap:wrap}
+  .nit{display:flex;gap:11px;align-items:flex-start;padding:11px 12px;border-radius:10px;
+    margin-bottom:6px;cursor:default;border:1px solid transparent}
+  .nit:hover{background:#f7f9ff}
+  .nit.nova{background:#f5f9ff;border-color:#dce8ff}
+  .nit.alta.nova{background:#fff6f5;border-color:#f6d5d1}
+  .nit .ic{width:32px;height:32px;border-radius:9px;flex:0 0 auto;display:flex;align-items:center;
+    justify-content:center;font-size:15px;background:#eef2fb}
+  .nit.alta .ic{background:#fde3e0} .nit.media .ic{background:#fdf1d6}
+  .nit .ct{flex:1;min-width:0}
+  .nit .ct b{display:block;font-size:13px;line-height:1.35;margin-bottom:2px}
+  .nit .ct .ds{font-size:12px;color:#4a5570;line-height:1.4;white-space:pre-wrap;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .nit .ct .mt{font-size:10.5px;color:var(--muted);margin-top:5px}
+  .nit .ct .lk{font-size:11.5px;font-weight:700;color:var(--azul);background:none;border:0;
+    padding:4px 0 0;cursor:pointer;font-family:inherit}
+  .nit .pt{width:8px;height:8px;border-radius:50%;background:var(--azul);flex:0 0 auto;margin-top:12px}
+  .nit.alta .pt{background:var(--vermelho)}
+  .nit.lida .pt{visibility:hidden}
+  .notif{display:flex;gap:13px;align-items:flex-start;padding:14px 16px;border:1px solid var(--linha);
+    border-radius:11px;margin-bottom:9px;background:#fff}
+  .notif.nova{border-left:5px solid var(--azul);background:#f7faff}
+  .notif.alta.nova{border-left-color:var(--vermelho);background:#fff6f5}
+  .notif .ic{width:36px;height:36px;border-radius:10px;flex:0 0 auto;display:flex;
+    align-items:center;justify-content:center;font-size:17px;background:#eef2fb}
+  .notif.alta .ic{background:#fde3e0}
+  .notif.media .ic{background:#fdf1d6}
+  .notif .ct{flex:1;min-width:0}
+  .notif .ct b{display:block;font-size:14px;margin-bottom:2px}
+  .notif .ct .ds{font-size:12.5px;color:#4a5570;white-space:pre-wrap}
+  .notif .ct .mt{font-size:11.5px;color:var(--muted);margin-top:6px}
+  .notif .ac{display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex:0 0 auto}
   main{max-width:1240px;margin:0 auto;padding:22px 20px 60px}
   .card{background:var(--card);border:1px solid var(--linha);border-radius:12px;box-shadow:var(--sombra)}
   .pad{padding:18px}
@@ -380,6 +440,13 @@
       <div class="sub">Ouvidoria-Geral do Município</div>
       <h1>Avaliação de Serviços Públicos</h1>
     </div>
+    <button class="sino" id="sino" aria-label="Notificações" title="Notificações">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2a6 6 0 0 0-6 6v3.6c0 .5-.2 1-.6 1.4L4 14.4c-.6.6-.2 1.6.7 1.6h14.6c.9 0 1.3-1 .7-1.6l-1.4-1.4c-.4-.4-.6-.9-.6-1.4V8a6 6 0 0 0-6-6Z"/>
+        <path d="M9.5 19a2.5 2.5 0 0 0 5 0Z"/>
+      </svg>
+      <span class="bg" id="sino_bg"></span>
+    </button>
     <a class="voltar" href="index.html">← OGM</a>
   </div>
   <div class="gradbar"></div>
@@ -389,7 +456,6 @@
     <button data-v="painel" class="on">Painel</button>
     <button data-v="aplicar">Aplicar</button>
     <button data-v="respostas">Respostas</button>
-    <button data-v="encaminhamentos">Encaminhamentos</button>
     <button data-v="gestao">Gestão do Sistema</button>
     <button data-v="relatorios">Relatórios</button>
   </div>
@@ -397,6 +463,7 @@
 <main id="app"></main>
 <div id="modal-root"></div>
 <div id="ent-root"></div>
+<div id="sino-root"></div>
 <button id="fila" class="fila-badge"></button>
 <div id="toast" class="toast"></div>
 
@@ -408,7 +475,7 @@
    CONFIGURAÇÃO
    AV_*  → projeto NOVO, exclusivo da avaliação de serviços
    OGM_* → projeto do Controle de Processos (leitura da taxonomia
-           e criação do processo ao aprovar um encaminhamento)
+           e registro do resultado da avaliação no processo)
 ================================================================ */
 const CONFIG = {
   AV_SUPABASE_URL:  "https://oaneajdzbdwbkmxdvaku.supabase.co",
@@ -422,12 +489,14 @@ let sb=null, sbo=null;
 let AUX={};                 // taxonomia vinda do OGM
 let FORMS=[];               // formulários
 let ENTS=[];                // entrevistas (cabeçalhos)
-let ENCS=[];                // encaminhamentos
 let view="painel";
 let CHARTS=[];
 let FILTRO={form:"",unidade:"",faixa:"",de:"",ate:"",alerta:""};
 let GESTAO={aba:"formularios",form:null};   // estado do editor
 let ENT=null;                                // entrevista em curso
+let EU=null;                                 // quem está operando o sistema
+let NOTIFS=[];
+const EU_KEY="av_quem_sou_v1";
 
 const PAL=['#0056EF','#20BF40','#EDA704','#F26522','#E23B2E','#7A5CF0','#12A5B4','#9A6A00','#c34e15','#5a6480'];
 const ICONES=['casa','coracao','estrela','escudo','bussola','maos','livro','roda'];
@@ -450,7 +519,7 @@ const STATUS_FORM={
 
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const app=$("#app"), modalRoot=$("#modal-root"), entRoot=$("#ent-root");
+const app=$("#app"), modalRoot=$("#modal-root"), entRoot=$("#ent-root"), sinoRoot=$("#sino-root");
 
 function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2800);}
@@ -479,8 +548,68 @@ function ico(nome,cls="eixo-ico",cor=null){
   await Promise.all([carregarFormularios(), carregarAuxOGM()]);
   atualizarFila();
   sincronizarFila(true);
+
+  EU=localStorage.getItem(EU_KEY)||null;
+  if(!EU) await perguntarQuemSou();
+
+  // vindo do Controle de Processos: ?novo=1&sei=…&pid=…
+  const u=new URLSearchParams(location.search);
+  if(u.get("novo")==="1" && u.get("sei")){
+    ir("gestao");
+    return formNovoFormulario({
+      numero_sei:u.get("sei"), ogm_processo_id:u.get("pid")?+u.get("pid"):null,
+      servico:u.get("servico")||"", ogm_area:u.get("area")||"",
+      ogm_subarea:u.get("subarea")||"", ogm_orgao:u.get("orgao")||"",
+      ogm_eixo:u.get("eixo")||"",
+      ogm_ods:(u.get("ods")||"").split(",").filter(Boolean).map(Number),
+      ogm_ods_metas:(u.get("metas")||"").split(",").filter(Boolean)
+    });
+  }
+  if(u.get("form")){
+    const id=+u.get("form");
+    ir("gestao");
+    return abrirEditor(id);
+  }
+  on("#sino","click",alternarSino);
+  document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&NF_ABERTO)fecharSino();});
+
   ir("painel");
+  carregarNotificacoes(true);
+  setInterval(()=>carregarNotificacoes(true),300000);
 })();
+
+/* quem está operando — usado nas entrevistas e no registro de leitura */
+function perguntarQuemSou(){
+  return new Promise(resolve=>{
+    const serv=(AUX.servidores||[]).map(x=>x.nome).sort(byPt());
+    modal("Quem está usando o sistema?",`
+      <p class="lead">A identificação fica guardada neste aparelho. Ela preenche automaticamente
+        o campo de entrevistador e registra quem leu cada notificação.</p>
+      <div class="frow one"><div><label class="f">Servidor(a)</label>
+        <select id="eu_nome"><option value="">Selecione</option>
+        ${serv.map(x=>`<option>${esc(x)}</option>`).join("")}</select></div></div>`,
+      [{rot:"Confirmar",cls:"primary",fn:()=>{
+        const v=$("#eu_nome").value;
+        if(!v){toast("Escolha o seu nome para continuar.");return;}
+        EU=v;try{localStorage.setItem(EU_KEY,v);}catch(e){}
+        fecharModal();resolve();
+      }}]);
+    const ov=modalRoot.querySelector(".overlay");if(ov)ov.onclick=null;
+    const x=$("#m_x");if(x)x.style.display="none";
+  });
+}
+
+async function atualizarBadge(){
+  let n=0;
+  try{
+    const {count}=await sb.from("av_notificacoes")
+      .select("*",{count:"exact",head:true}).is("lida_em",null).eq("arquivada",false);
+    n=count||0;
+  }catch(e){return;}
+  const b=$("#sino_bg"), s2=$("#sino");
+  if(b){b.textContent=n>99?"99+":String(n);b.classList.toggle("show",n>0);}
+  if(s2)s2.classList.toggle("tem",n>0);
+}
 
 function telaSetup(erro){
   app.innerHTML=`<div class="card pad setup">
@@ -508,7 +637,6 @@ function ir(v){
   if(v==="painel")renderPainel();
   else if(v==="aplicar")renderAplicar();
   else if(v==="respostas")renderRespostas();
-  else if(v==="encaminhamentos")renderEncaminhamentos();
   else if(v==="gestao")renderGestao();
   else if(v==="relatorios")renderRelatorios();
 }
@@ -538,11 +666,6 @@ async function carregarEntrevistas(){
   const {data,error}=await q;
   if(error){toast("Erro ao carregar entrevistas: "+error.message);return [];}
   ENTS=data||[];return ENTS;
-}
-async function carregarEncaminhamentos(){
-  const {data,error}=await sb.from("av_encaminhamentos").select("*").order("created_at",{ascending:false});
-  if(error){toast("Erro: "+error.message);return [];}
-  ENCS=data||[];return ENCS;
 }
 async function carregarFormCompleto(id){
   const {data,error}=await sb.rpc('av_formulario_completo',{p_id:id});
@@ -878,7 +1001,7 @@ async function abrirPreparo(id){
     <div class="frow">
       <div><label class="f">Entrevistador(a) responsável</label>
         <select id="p_ent"><option value="">Selecione</option>
-        ${serv.map(s=>`<option>${esc(s)}</option>`).join("")}</select></div>
+        ${serv.map(s=>`<option ${s===EU?'selected':''}>${esc(s)}</option>`).join("")}</select></div>
       <div><label class="f">Data da entrevista</label>
         <input type="date" id="p_data" value="${hoje()}"></div>
     </div>
@@ -1154,13 +1277,12 @@ function pintarRespostas(){
       acionaram o Protocolo de Alerta. Toque numa linha para ver todas as respostas.</p>
     ${lista.length?`<div class="tblwrap"><table>
       <thead><tr><th>Código</th><th>Data</th><th>Unidade</th><th>Perfil</th>
-        <th>Entrevistador(a)</th><th>Alerta</th><th>Encaminhado</th></tr></thead>
+        <th>Entrevistador(a)</th><th>Alerta</th></tr></thead>
       <tbody>${lista.map(e=>`<tr class="${e.alerta?'alerta':''}" data-ent="${e.id}">
         <td><b>${esc(e.codigo)}</b></td><td>${dbr(e.data_entrevista)}</td>
         <td>${esc(e.unidade_codigo||'—')}</td><td>${esc(e.faixa_nome||e.faixa_codigo||'—')}</td>
         <td>${esc(e.entrevistador||'—')}</td>
         <td>${e.alerta?'<span class="chip red">Alerta</span>':'<span class="chip gray">—</span>'}</td>
-        <td>${e.encaminhamento_id?'<span class="chip purple">Sim</span>':'—'}</td>
       </tr>`).join("")}</tbody></table></div>`
      :`<div class="empty"><svg width="56" height="56"><use href="#ico-vazio"></use></svg>
         <div>Nenhuma entrevista no recorte selecionado.</div></div>`}
@@ -1220,241 +1342,152 @@ async function verEntrevista(id){
 }
 
 /* ================================================================
-   ENCAMINHAMENTOS AO OGM
+   CENTRAL DE NOTIFICAÇÕES — sino no cabeçalho
+   Reúne o que exige atenção nos dois sistemas: alertas de entrevista,
+   prazos de coleta, processos vencidos no Controle de Processos e
+   formulários parados aguardando ativação.
 ================================================================ */
-async function renderEncaminhamentos(){
-  app.innerHTML=`<div class="card pad"><p class="lead">Carregando…</p></div>`;
-  await Promise.all([carregarEntrevistas(),carregarEncaminhamentos()]);
-  popularListasFiltro();
-  pintarEncaminhamentos();
-}
-function pintarEncaminhamentos(){
-  const pend=ENCS.filter(e=>e.status==="pendente"||e.status==="aprovado");
-  const feitos=ENCS.filter(e=>e.status==="enviado");
-  const rej=ENCS.filter(e=>e.status==="rejeitado");
-  app.innerHTML=`
-  ${barraFiltros(`<button class="btn primary" id="e_novo">Gerar encaminhamento</button>`)}
-  <div class="card pad">
-    <h2 class="sec">Encaminhamentos ao Controle de Processos</h2>
-    <p class="lead">Cada encaminhamento aprovado abre um processo no OGM com o tipo de demanda
-      <b>Avaliação de Serviço Público</b>, consolidando as entrevistas de uma unidade num período.
-      Nada é enviado sem a sua revisão.</p>
-    ${pend.length?`<h3 style="font-size:13.5px;margin:18px 0 10px">Aguardando revisão</h3>
-      ${pend.map(itemEnc).join("")}`:''}
-    ${feitos.length?`<h3 style="font-size:13.5px;margin:22px 0 10px">Enviados ao OGM</h3>
-      ${feitos.map(itemEnc).join("")}`:''}
-    ${rej.length?`<h3 style="font-size:13.5px;margin:22px 0 10px">Arquivados sem encaminhamento</h3>
-      ${rej.map(itemEnc).join("")}`:''}
-    ${!ENCS.length?`<div class="empty"><svg width="56" height="56"><use href="#ico-vazio"></use></svg>
-      <div>Nenhum encaminhamento gerado.</div>
-      <div style="margin-top:6px;font-size:12.5px">Filtre o formulário, a unidade e o período e use
-        <b>Gerar encaminhamento</b> para consolidar as entrevistas.</div></div>`:''}
-  </div>`;
-  ligarFiltros(pintarEncaminhamentos);
-  on("#e_novo","click",gerarEncaminhamento);
-  $$("[data-enc]").forEach(b=>b.onclick=()=>revisarEncaminhamento(+b.dataset.enc));
-}
-function itemEnc(e){
-  const st={pendente:['amber','Aguardando revisão'],aprovado:['blue','Revisado'],
-            enviado:['green','Processo criado'],rejeitado:['gray','Arquivado']}[e.status]||['gray',e.status];
-  return `<div class="lista-item">
-    <div class="mt"><b>${esc(e.codigo)} · ${esc(e.formulario_nome||'')}</b>
-      <div class="m2">${esc(e.unidade_codigo||'todas as unidades')} ·
-        ${e.periodo_ini?`${dbr(e.periodo_ini)} a ${dbr(e.periodo_fim)}`:'período completo'} ·
-        ${e.qtd_entrevistas} entrevista(s)${e.qtd_alertas?` · <b style="color:var(--vermelho)">${e.qtd_alertas} alerta(s)</b>`:''}</div>
-      ${e.numero_sei?`<div class="m2">SEI ${esc(e.numero_sei)}</div>`:''}</div>
-    <span class="chip ${st[0]}">${st[1]}</span>
-    ${e.indice_geral!=null?`<span class="chip blue">índice ${num(e.indice_geral)}</span>`:''}
-    <button class="btn ${e.status==='enviado'?'ghost':'primary'} sm" data-enc="${e.id}">
-      ${e.status==='enviado'?'Ver':'Revisar'}</button>
-  </div>`;
-}
+let NF_FILTRO="nao_lidas";
+let NF_ABERTO=false;
 
-async function gerarEncaminhamento(){
-  const lista=aplicaFiltro(ENTS).filter(e=>!e.encaminhamento_id);
-  if(!lista.length){toast("Nenhuma entrevista sem encaminhamento no recorte atual.");return;}
-  const f=FORMS.find(x=>x.id===lista[0].formulario_id)||{};
-  if(new Set(lista.map(e=>e.formulario_id)).size>1){
-    toast("Selecione um único formulário no filtro antes de gerar.");return;}
-  const ids=lista.map(e=>e.id);
-  const {data:rs}=await sb.from("av_respostas").select("entrevista_id,codigo").in("entrevista_id",ids);
-  const val=(rs||[]).filter(r=>r.codigo>=1&&r.codigo<=5);
-  const idx=val.length?+(val.reduce((s,r)=>s+r.codigo,0)/val.length).toFixed(2):null;
-  const alertas=lista.filter(e=>e.alerta).length;
-  const unid=[...new Set(lista.map(e=>e.unidade_codigo).filter(Boolean))];
-  const codigo=await proximoCodigo('ENC');
+function alternarSino(){
+  if(NF_ABERTO)return fecharSino();
+  NF_ABERTO=true;
+  sinoRoot.innerHTML=`<div class="sinowrap" id="sino_wrap"><div class="sinopanel">
+    <div class="hd"><h3>Notificações</h3>
+      <button class="btn ghost sm" id="nf_verificar">Verificar</button>
+      <button class="x" id="nf_x" style="border:0;background:#f1f4fb;border-radius:8px;width:30px;height:30px;font-size:17px;cursor:pointer;color:#5a6480;font-family:inherit">×</button>
+    </div>
+    <div class="tabs" id="nf_tabs"></div>
+    <div class="lista" id="nf_lista"><p class="lead" style="padding:14px">Verificando pendências…</p></div>
+    <div class="ft">
+      <button class="btn ghost sm" id="nf_todas">Marcar todas como lidas</button>
+      <span class="muted" style="font-size:11px;align-self:center" id="nf_quem"></span>
+    </div>
+  </div></div>`;
+  on("#nf_x","click",fecharSino);
+  on("#sino_wrap","click",ev=>{if(ev.target.id==="sino_wrap")fecharSino();});
+  on("#nf_verificar","click",()=>carregarNotificacoes(true));
+  on("#nf_todas","click",()=>marcarLidas(NOTIFS.filter(n=>!n.lida_em).map(n=>n.id)));
+  carregarNotificacoes(true);
+}
+function fecharSino(){NF_ABERTO=false;sinoRoot.innerHTML="";}
 
-  const rec={
-    codigo, formulario_id:f.id, formulario_nome:f.nome,
-    unidade_codigo:unid.length===1?unid[0]:null,
-    periodo_ini:lista.map(e=>e.data_entrevista).sort()[0],
-    periodo_fim:lista.map(e=>e.data_entrevista).sort().slice(-1)[0],
-    entrevistas_ids:ids, qtd_entrevistas:ids.length, qtd_alertas:alertas,
-    indice_geral:idx,
-    resumo:montarResumo(f,lista,idx,alertas,unid),
-    tipo_demanda:'Avaliação de Serviço Público',
-    area:f.ogm_area, subarea:f.ogm_subarea, ods:f.ogm_ods||[],
-    ods_metas:f.ogm_ods_metas||[], orgao:f.ogm_orgao, eixo:f.ogm_eixo,
-    status:'pendente'
-  };
-  const {data,error}=await sb.from("av_encaminhamentos").insert(rec).select("id").single();
-  if(error){toast("Erro ao gerar: "+error.message);return;}
-  await sb.from("av_entrevistas").update({encaminhamento_id:data.id}).in("id",ids);
-  toast("Encaminhamento gerado. Revise antes de enviar ao OGM.");
-  await renderEncaminhamentos();
-  revisarEncaminhamento(data.id);
-}
-function montarResumo(f,lista,idx,alertas,unid){
-  const porFaixa={};lista.forEach(e=>{porFaixa[e.faixa_nome||e.faixa_codigo]=(porFaixa[e.faixa_nome||e.faixa_codigo]||0)+1;});
-  return `AVALIAÇÃO DE SERVIÇO PÚBLICO — ${f.nome}
-Serviço avaliado: ${f.servico||'—'}
-Período de coleta: ${dbr(lista.map(e=>e.data_entrevista).sort()[0])} a ${dbr(lista.map(e=>e.data_entrevista).sort().slice(-1)[0])}
-Unidade(s): ${unid.join(', ')||'—'}
-Entrevistas realizadas: ${lista.length}
-${Object.entries(porFaixa).map(([k,v])=>`  · ${k}: ${v}`).join("\n")}
-Índice geral de satisfação: ${idx==null?'—':num(idx)} (escala 1 a 3)
-Entrevistas com Protocolo de Alerta acionado: ${alertas}
-
-Fundamento: Lei nº 13.460/2017, art. 7º; Guia de Avaliação de Serviços Públicos (CGU).
-Códigos das entrevistas: ${lista.map(e=>e.codigo).join(', ')}
-Os dados detalhados, anonimizados, constam do Sistema de Avaliação de Serviços Públicos da Ouvidoria-Geral.`;
-}
-
-function revisarEncaminhamento(id){
-  const e=ENCS.find(x=>x.id===id);if(!e)return;
-  const tax=AUX.taxonomia||[];
-  const areas=[...new Set(tax.map(t=>t.area))].sort(byPt());
-  const orgaos=(AUX.orgaos||[]).slice().sort(byPt('nome'));
-  const serv=(AUX.servidores||[]).map(s=>s.nome).sort(byPt());
-  const unids=(AUX.unidades||[]).slice().sort(byPt('sigla'));
-  const enviado=e.status==="enviado";
-  modal(`Encaminhamento ${esc(e.codigo)}`,`
-    ${enviado?`<div class="aviso b">Processo já criado no OGM${e.numero_sei?` sob o SEI ${esc(e.numero_sei)}`:''}.
-      Este registro é somente leitura.</div>`:''}
-    ${e.qtd_alertas?`<div class="aviso r"><b>${e.qtd_alertas} entrevista(s) com Protocolo de Alerta.</b>
-      Verifique se os encaminhamentos externos — Conselho Tutelar, Ministério Público, Vara da
-      Infância e Juventude — já foram providenciados antes de abrir o processo.</div>`:''}
-    <fieldset><legend>Consolidação</legend>
-      <div class="frow four">
-        <div><label class="f">Entrevistas</label><div><b>${e.qtd_entrevistas}</b></div></div>
-        <div><label class="f">Alertas</label><div><b style="color:var(--vermelho)">${e.qtd_alertas}</b></div></div>
-        <div><label class="f">Índice geral</label><div><b>${num(e.indice_geral)}</b></div></div>
-        <div><label class="f">Período</label><div>${dbr(e.periodo_ini)} a ${dbr(e.periodo_fim)}</div></div>
-      </div>
-    </fieldset>
-    <fieldset><legend>Dados do processo no OGM</legend>
-      <div class="frow">
-        <div><label class="f">Número SEI <span class="hint">Abra o processo no SEI e informe o número aqui.</span></label>
-          <input id="v_sei" value="${esc(e.numero_sei||'')}" placeholder="00000.000000/2026-00" ${enviado?'disabled':''}></div>
-        <div><label class="f">Tipo de demanda</label>
-          <input value="Avaliação de Serviço Público" disabled></div>
-      </div>
-      <div class="frow">
-        <div><label class="f">Área temática</label>
-          <select id="v_area" ${enviado?'disabled':''}><option value="">Selecione</option>
-          ${areas.map(a=>`<option ${a===e.area?'selected':''}>${esc(a)}</option>`).join("")}</select></div>
-        <div><label class="f">Subárea</label>
-          <select id="v_sub" ${enviado?'disabled':''}></select></div>
-      </div>
-      <div class="frow">
-        <div><label class="f">Órgão demandado</label>
-          <select id="v_org" ${enviado?'disabled':''}><option value="">Selecione</option>
-          ${orgaos.map(o=>`<option value="${esc(o.sigla)}" ${o.sigla===e.orgao?'selected':''}>${esc(o.sigla)} — ${esc(o.nome)}</option>`).join("")}</select></div>
-        <div><label class="f">ODS relacionados</label>
-          <div id="v_ods" style="display:flex;flex-wrap:wrap;gap:5px;border:1px solid var(--linha);border-radius:8px;padding:8px;max-height:110px;overflow:auto"></div></div>
-      </div>
-      <div class="frow">
-        <div><label class="f">Servidor(a) responsável na Ouvidoria</label>
-          <select id="v_serv" ${enviado?'disabled':''}><option value="">Selecione</option>
-          ${serv.map(s=>`<option ${s===e.servidor?'selected':''}>${esc(s)}</option>`).join("")}</select></div>
-        <div><label class="f">Unidade responsável</label>
-          <select id="v_unid" ${enviado?'disabled':''}><option value="">Selecione</option>
-          ${unids.map(u=>`<option value="${esc(u.sigla)}" ${u.sigla===e.unidade_resp?'selected':''}>${esc(u.sigla)} — ${esc(u.nome)}</option>`).join("")}</select></div>
-      </div>
-    </fieldset>
-    <fieldset><legend>Resumo que irá para o processo</legend>
-      <textarea id="v_res" style="min-height:230px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px" ${enviado?'disabled':''}>${esc(e.resumo||'')}</textarea>
-    </fieldset>`,
-    enviado?[{rot:"Fechar",cls:"ghost",fn:fecharModal}]
-    :[{rot:"Fechar",cls:"ghost",fn:fecharModal},
-      {rot:"Arquivar sem encaminhar",cls:"danger",fn:()=>arquivarEnc(e.id)},
-      {rot:"Salvar revisão",cls:"ghost",fn:()=>salvarRevisao(e.id,false)},
-      {rot:"Criar processo no OGM",cls:"ok",fn:()=>salvarRevisao(e.id,true)}],
-    "wide");
-
-  // subárea dependente
-  const pintaSub=()=>{
-    const a=$("#v_area").value;
-    const subs=tax.filter(t=>t.area===a).map(t=>t.subarea).sort(byPt());
-    $("#v_sub").innerHTML=`<option value="">Selecione</option>`+
-      subs.map(s=>`<option ${s===e.subarea?'selected':''}>${esc(s)}</option>`).join("");
-  };
-  on("#v_area","change",pintaSub);pintaSub();
-  // ODS
-  const odsSel=new Set((e.ods||[]).map(Number));
-  $("#v_ods").innerHTML=(AUX.ods||[]).map(o=>
-    `<label class="chip ${odsSel.has(o.numero)?'blue':'gray'}" style="cursor:pointer">
-      <input type="checkbox" class="v_o" value="${o.numero}" ${odsSel.has(o.numero)?'checked':''}
-        style="width:auto;margin-right:4px" ${enviado?'disabled':''}>${o.numero}</label>`).join("");
-}
-function coletaRevisao(){
-  return {
-    numero_sei:$("#v_sei").value.trim()||null,
-    area:$("#v_area").value||null, subarea:$("#v_sub").value||null,
-    orgao:$("#v_org").value||null, servidor:$("#v_serv").value||null,
-    unidade_resp:$("#v_unid").value||null,
-    ods:$$(".v_o").filter(c=>c.checked).map(c=>+c.value),
-    resumo:$("#v_res").value
-  };
-}
-async function salvarRevisao(id,enviar){
-  const d=coletaRevisao();
-  if(enviar){
-    if(!d.numero_sei){toast("Informe o número SEI do processo antes de criar.");return;}
-    if(!d.area||!d.subarea){toast("Classifique área e subárea antes de criar o processo.");return;}
-  }
-  const upd={...d,status:enviar?'aprovado':'pendente',
-    revisado_por:d.servidor,revisado_em:new Date().toISOString()};
-  const {error}=await sb.from("av_encaminhamentos").update(upd).eq("id",id);
-  if(error){toast("Erro ao salvar: "+error.message);return;}
-  if(!enviar){toast("Revisão salva.");fecharModal();return renderEncaminhamentos();}
-  await criarProcessoOGM(id,d);
-}
-async function criarProcessoOGM(id,d){
-  const e=ENCS.find(x=>x.id===id)||{};
-  const rec={
-    numero_sei:d.numero_sei, data_entrada:hoje(),
-    tipo_demanda:'Avaliação de Serviço Público',
-    orgao_demandado:d.orgao||null, orgaos:d.orgao?[d.orgao]:[],
-    n_manifestacoes:1,
-    area:d.area, subarea:d.subarea, ods:(d.ods||[]).map(Number),
-    servidor:d.servidor||null, unidade_resp:d.unidade_resp||'CG-OGM',
-    status:'Em análise',
-    observacoes:d.resumo
-  };
-  const {data,error}=await sbo.from("processos").insert(rec).select("id").single();
+async function carregarNotificacoes(recalcular){
+  if(recalcular) await recalcularSituacoes();
+  const {data,error}=await sb.from("av_notificacoes").select("*")
+    .eq("arquivada",false).order("lida_em",{ascending:true,nullsFirst:true})
+    .order("criticidade").order("criado_em",{ascending:false}).limit(300);
   if(error){
-    // tenta sem os campos que podem não existir na tabela
-    const min={numero_sei:rec.numero_sei,data_entrada:rec.data_entrada,tipo_demanda:rec.tipo_demanda,
-      orgao_demandado:rec.orgao_demandado,orgaos:rec.orgaos,n_manifestacoes:1,
-      area:rec.area,subarea:rec.subarea,ods:rec.ods,servidor:rec.servidor,
-      unidade_resp:rec.unidade_resp,status:rec.status};
-    const r2=await sbo.from("processos").insert(min).select("id").single();
-    if(r2.error){toast("Não foi possível criar o processo: "+r2.error.message);return;}
-    await sb.from("av_encaminhamentos").update({status:'enviado',ogm_processo_id:r2.data.id}).eq("id",id);
-  }else{
-    await sb.from("av_encaminhamentos").update({status:'enviado',ogm_processo_id:data.id}).eq("id",id);
+    const l=$("#nf_lista");
+    if(l)l.innerHTML=`<div class="aviso r" style="margin:10px">${esc(error.message)}</div>`;
+    return;
   }
-  toast(`Processo ${d.numero_sei} criado no OGM.`);
-  fecharModal();renderEncaminhamentos();
+  NOTIFS=data||[];
+  atualizarBadge();
+  if(NF_ABERTO)pintarSino();
 }
-async function arquivarEnc(id){
-  const m=prompt("Motivo para arquivar sem encaminhar ao OGM:");
-  if(m===null)return;
-  const {error}=await sb.from("av_encaminhamentos")
-    .update({status:'rejeitado',motivo_rejeicao:m,revisado_em:new Date().toISOString()}).eq("id",id);
+
+/* varre o estado atual dos dois bancos e grava as notificações de situação.
+   São gravadas pela chave, então marcar como lida sobrevive ao recálculo. */
+async function recalcularSituacoes(){
+  const hj=hoje(), tarefas=[];
+  FORMS.filter(f=>f.status==="ativo"&&f.data_fim).forEach(f=>{
+    const dias=Math.round((new Date(f.data_fim)-new Date(hj))/86400000);
+    if(dias>7)return;
+    tarefas.push(sb.rpc('av_notificar',{
+      p_chave:`coleta:form:${f.id}`, p_origem:'avaliacao', p_tipo:'prazo_coleta',
+      p_criticidade:dias<0?'alta':'media',
+      p_titulo:dias<0?`Coleta encerrada sem fechamento — ${f.nome}`
+                     :`Coleta termina em ${dias} dia(s) — ${f.nome}`,
+      p_descricao:dias<0
+        ?`O período terminou em ${dbr(f.data_fim)} e o formulário continua ativo. Encerre-o para consolidar os resultados no processo.`
+        :`O período vai até ${dbr(f.data_fim)}. Verifique se faltam unidades a visitar.`,
+      p_sei:f.numero_sei||null, p_ref_tipo:'formulario', p_ref_id:f.id, p_acao:null}));
+  });
+  FORMS.filter(f=>f.status==="publicado").forEach(f=>{
+    tarefas.push(sb.rpc('av_notificar',{
+      p_chave:`ativar:form:${f.id}`, p_origem:'avaliacao', p_tipo:'aguardando_ativacao',
+      p_criticidade:'baixa', p_titulo:`Aguardando ativação — ${f.nome}`,
+      p_descricao:f.numero_sei?'Formulário revisado e publicado, pronto para iniciar a coleta.'
+        :'Formulário publicado sem número SEI. Vincule-o a um processo antes de ativar.',
+      p_sei:f.numero_sei||null, p_ref_tipo:'formulario', p_ref_id:f.id, p_acao:null}));
+  });
+  try{
+    const {data}=await sbo.from("processos")
+      .select("id,numero_sei,tipo_demanda,prazo_interno,servidor,status")
+      .lt("prazo_interno",hj).eq("sem_prazo",false)
+      .not("status","in",'("Concluído","Arquivado")')
+      .order("prazo_interno").limit(60);
+    (data||[]).forEach(pr=>{
+      const atraso=Math.round((new Date(hj)-new Date(pr.prazo_interno))/86400000);
+      tarefas.push(sb.rpc('av_notificar',{
+        p_chave:`prazo:proc:${pr.id}`, p_origem:'ogm', p_tipo:'prazo_processo',
+        p_criticidade:atraso>10?'alta':'media',
+        p_titulo:`Prazo vencido — ${pr.numero_sei||'processo sem SEI'}`,
+        p_descricao:`Vencido em ${dbr(pr.prazo_interno)}, há ${atraso} dia(s).\n${pr.tipo_demanda||''}${pr.servidor?' · '+pr.servidor:''}`,
+        p_sei:pr.numero_sei||null, p_ref_tipo:'processo', p_ref_id:pr.id,
+        p_acao:'index.html'}));
+    });
+  }catch(e){}
+  if(tarefas.length) await Promise.allSettled(tarefas);
+}
+
+const NF_ICO={alerta:'⚠',prazo_coleta:'⏳',prazo_processo:'📋',
+              aguardando_ativacao:'◷',formulario_encerrado:'✓'};
+function pintarSino(){
+  const naoLidas=NOTIFS.filter(n=>!n.lida_em);
+  const lista=NF_FILTRO==="nao_lidas"?naoLidas
+    :NF_FILTRO==="todas"?NOTIFS:NOTIFS.filter(n=>n.origem===NF_FILTRO);
+
+  const tabs=$("#nf_tabs");
+  if(tabs){
+    const cnt=k=>k==="nao_lidas"?naoLidas.length:k==="todas"?NOTIFS.length
+      :naoLidas.filter(n=>n.origem===k).length;
+    tabs.innerHTML=[['nao_lidas','Não lidas'],['avaliacao','Avaliação'],
+                    ['ogm','Processos'],['todas','Todas']]
+      .map(([k,r])=>`<button data-nf="${k}" class="${NF_FILTRO===k?'on':''}">${r}${cnt(k)?` (${cnt(k)})`:''}</button>`).join("");
+    $$("[data-nf]").forEach(b=>b.onclick=()=>{NF_FILTRO=b.dataset.nf;pintarSino();});
+  }
+  const q=$("#nf_quem");if(q)q.textContent=EU?`Sessão de ${EU}`:"";
+  const bt=$("#nf_todas");if(bt)bt.style.display=naoLidas.length?"":"none";
+
+  const box=$("#nf_lista");if(!box)return;
+  box.innerHTML=lista.length?lista.map(n=>`
+    <div class="nit ${n.criticidade} ${n.lida_em?'lida':'nova'}">
+      <div class="ic">${NF_ICO[n.tipo]||'•'}</div>
+      <div class="ct">
+        <b>${esc(n.titulo)}</b>
+        <div class="ds">${esc(n.descricao||'')}</div>
+        <div class="mt">${n.numero_sei?`SEI ${esc(n.numero_sei)} · `:''}${dbr(n.criado_em)}${n.lida_em?` · lida por ${esc(n.lida_por||'—')}`:''}</div>
+        <div>
+          ${n.ref_tipo==='formulario'?`<button class="lk" data-irform="${n.ref_id}">Abrir formulário</button>`:''}
+          ${n.ref_tipo==='entrevista'?`<button class="lk" data-irent="${n.ref_id}">Ver entrevista</button>`:''}
+          ${n.ref_tipo==='processo'?`<a class="lk" href="index.html" target="_blank" style="text-decoration:none;display:inline-block">Abrir no Controle de Processos</a>`:''}
+          ${n.lida_em?'':`<button class="lk" data-ler="${n.id}" style="margin-left:12px;color:var(--muted)">Marcar lida</button>`}
+        </div>
+      </div>
+      <div class="pt"></div>
+    </div>`).join("")
+   :`<div class="empty" style="padding:34px 16px">
+      <svg width="46" height="46"><use href="#ico-vazio"></use></svg>
+      <div style="font-size:13px">${NF_FILTRO==='nao_lidas'?'Nada pendente. Tudo em dia.':'Nenhuma notificação neste recorte.'}</div></div>`;
+
+  $$("[data-ler]").forEach(b=>b.onclick=()=>marcarLidas([+b.dataset.ler]));
+  $$("[data-irform]").forEach(b=>b.onclick=()=>{fecharSino();ir("gestao");abrirEditor(+b.dataset.irform);});
+  $$("[data-irent]").forEach(b=>b.onclick=async()=>{
+    fecharSino();
+    if(!ENTS.length)await carregarEntrevistas();
+    verEntrevista(+b.dataset.irent);});
+}
+
+async function marcarLidas(ids){
+  if(!ids||!ids.length)return;
+  const {error}=await sb.rpc('av_marcar_lida',{p_ids:ids,p_quem:EU||'não identificado'});
   if(error){toast("Erro: "+error.message);return;}
-  toast("Encaminhamento arquivado.");fecharModal();renderEncaminhamentos();
+  const agora=new Date().toISOString();
+  NOTIFS.forEach(n=>{if(ids.includes(n.id)&&!n.lida_em){n.lida_em=agora;n.lida_por=EU;}});
+  pintarSino();atualizarBadge();
 }
 
 /* ================================================================
@@ -1469,18 +1502,22 @@ function renderGestao(){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div><h2 class="sec">Formulários de avaliação</h2>
         <p class="lead">Cada formulário é uma edição de uma avaliação: um serviço, um período,
-          uma versão. Reutilizar significa clonar e revisar os quesitos — as respostas antigas
-          permanecem presas à versão em que foram coletadas.</p></div>
-      <button class="btn primary" id="g_novo">Novo formulário</button>
+          uma versão, sempre amarrada a um processo. Reutilizar significa clonar e revisar os
+          quesitos — as respostas antigas permanecem presas à versão em que foram coletadas.</p></div>
     </div>
     ${ordem.filter(s=>por[s]&&por[s].length).map(s=>`
       <h3 style="font-size:13px;margin:20px 0 10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">
         ${STATUS_FORM[s].rot}</h3>
       ${por[s].map(f=>linhaGestao(f)).join("")}`).join("")}
     ${!FORMS.length?`<div class="empty"><svg width="56" height="56"><use href="#ico-vazio"></use></svg>
-      <div>Nenhum formulário cadastrado.</div></div>`:''}
+      <div>Nenhum formulário cadastrado.</div>
+      <div style="margin-top:8px;font-size:12.5px">Os formulários nascem de um processo:
+        abra o processo no <a href="index.html">Controle de Processos</a>, escolha a tipologia
+        <b>Avaliação de Serviço Público</b> e use <b>Criar formulário de avaliação</b>.</div></div>`
+      :`<div class="aviso b" style="margin-top:18px">Para criar um novo formulário, abra o processo
+        no <a href="index.html">Controle de Processos</a> e use <b>Criar formulário de avaliação</b>.
+        Assim ele já nasce com o SEI e a classificação temática do processo.</div>`}
   </div>`;
-  on("#g_novo","click",novoFormulario);
   $$("[data-ed]").forEach(b=>b.onclick=()=>abrirEditor(+b.dataset.ed));
   $$("[data-clone]").forEach(b=>b.onclick=()=>clonar(+b.dataset.clone));
   $$("[data-st]").forEach(b=>b.onclick=()=>mudarStatus(+b.dataset.st,b.dataset.para));
@@ -1509,39 +1546,338 @@ function linhaGestao(f){
       <div class="m2">${esc(f.servico||'—')}</div>
       <div class="m2">${esc(f.codigo)} · versão ${f.versao}
         ${f.origem_id?' · derivado de versão anterior':''}
-        ${f.data_inicio?` · ${dbr(f.data_inicio)} a ${dbr(f.data_fim)}`:''}</div></div>
+        ${f.data_inicio?` · ${dbr(f.data_inicio)} a ${dbr(f.data_fim)}`:''}</div>
+      <div class="m2">${f.numero_sei
+        ?`SEI <b>${esc(f.numero_sei)}</b>`
+        :'<span style="color:var(--vermelho);font-weight:700">sem processo vinculado</span>'}</div></div>
     <span class="chip ${st.chip}">${st.rot}</span>
     <div class="acts">${acts.join("")}</div></div>`;
 }
 async function mudarStatus(id,para){
   const f=FORMS.find(x=>x.id===id);
-  if(para==='ativo'&&(!f.data_inicio||!f.data_fim)){
-    toast("Defina o período de coleta antes de ativar.");return abrirEditor(id);}
+  if(para==='ativo'){
+    if(!f.numero_sei){toast("Vincule o formulário a um processo antes de ativar.");return abrirEditor(id);}
+    if(!f.data_inicio||!f.data_fim){toast("Defina o período de coleta antes de ativar.");return abrirEditor(id);}
+  }
   if(para==='descartado'&&!confirm("Descartar este formulário? Ele deixa de aparecer nas listas, mas fica no histórico."))return;
-  if(para==='encerrado'&&!confirm("Encerrar o período de coleta?\n\nAs entrevistas registradas ficam congeladas e continuam visíveis no painel."))return;
+  if(para==='encerrado')return encerrarFormulario(f);
   const {error}=await sb.from("av_formularios").update({status:para}).eq("id",id);
   if(error){toast(error.message);return;}
   await carregarFormularios();renderGestao();
   toast(`Formulário ${STATUS_FORM[para].rot.toLowerCase()}.`);
 }
+
+/* Encerrar é o momento em que a avaliação volta ao processo: grava a tratativa
+   com os resultados e, se for o último formulário daquele SEI, conclui o processo. */
+async function encerrarFormulario(f){
+  const {data:sit}=await sb.rpc('av_situacao_processo',{p_sei:f.numero_sei});
+  const outros=(sit?sit.total:1)-1;
+  const seraUltimo=(sit?(sit.ativos+sit.pendentes):1)<=1;
+
+  const {data:ents}=await sb.from("av_entrevistas").select("id,unidade_codigo,faixa_nome,alerta")
+    .eq("formulario_id",f.id).eq("status","concluida");
+  const lista=ents||[];
+  const {data:rs}=await sb.from("av_respostas").select("codigo")
+    .in("entrevista_id",lista.length?lista.map(e=>e.id):[-1]);
+  const val=(rs||[]).filter(r=>r.codigo>=1&&r.codigo<=5);
+  const idx=val.length?(val.reduce((a,b)=>a+b.codigo,0)/val.length):null;
+  const alertas=lista.filter(e=>e.alerta).length;
+  const porUnid={};lista.forEach(e=>{const k=e.unidade_codigo||'—';porUnid[k]=(porUnid[k]||0)+1;});
+
+  const resumo=
+`AVALIAÇÃO DE SERVIÇO PÚBLICO — RESULTADO CONSOLIDADO
+Formulário: ${f.nome} (${f.codigo}, versão ${f.versao})
+Serviço avaliado: ${f.servico||'—'}
+Período de coleta: ${dbr(f.data_inicio)} a ${dbr(f.data_fim)}
+
+Entrevistas realizadas: ${lista.length}
+${Object.entries(porUnid).map(([k,v])=>`  · ${k}: ${v}`).join("\n")||'  (sem unidades registradas)'}
+Índice geral de satisfação: ${idx==null?'—':num(idx)} (escala 1 a 3)
+Entrevistas com Protocolo de Alerta: ${alertas}
+
+Fundamento: Lei nº 13.460/2017, art. 7º; Guia de Avaliação de Serviços Públicos (CGU).
+Os dados detalhados, anonimizados, constam do Sistema de Avaliação de Serviços Públicos
+da Ouvidoria-Geral. Relatório completo disponível em avaliacao.html.`;
+
+  modal("Encerrar período de coleta",`
+    ${alertas?`<div class="aviso r"><b>${alertas} entrevista(s) com Protocolo de Alerta.</b>
+      Confirme se os encaminhamentos externos — Conselho Tutelar, Ministério Público,
+      Vara da Infância e Juventude — já foram providenciados.</div>`:''}
+    <div class="aviso y">As entrevistas ficam congeladas após o encerramento. Para uma nova
+      edição, clone o formulário e vincule-o a um processo novo.</div>
+    <fieldset><legend>O que será gravado no processo SEI ${esc(f.numero_sei||'—')}</legend>
+      <div class="frow four">
+        <div><label class="f">Entrevistas</label><div><b>${lista.length}</b></div></div>
+        <div><label class="f">Alertas</label><div><b style="color:var(--vermelho)">${alertas}</b></div></div>
+        <div><label class="f">Índice geral</label><div><b>${num(idx)}</b></div></div>
+        <div><label class="f">Outros formulários no processo</label><div><b>${outros}</b></div></div>
+      </div>
+      <div class="frow one"><div><label class="f">Tratativa a registrar
+        <span class="hint">Entra na Tramitação Processual do processo, no Controle de Processos.</span></label>
+        <textarea id="ec_resumo" style="min-height:230px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px">${esc(resumo)}</textarea></div></div>
+    </fieldset>
+    <fieldset><legend>Conclusão do processo</legend>
+      ${seraUltimo
+        ?`<label class="check"><input type="checkbox" id="ec_concluir" checked>
+            <span>Concluir o processo no Controle de Processos
+            <span class="hint">Este é o último formulário em aberto deste SEI. O processo passa a
+              "Concluído", com a data da resposta conclusiva preenchida.</span></span></label>
+          <div class="frow"><div><label class="f">Data da resposta conclusiva</label>
+            <input type="date" id="ec_data" value="${hoje()}"></div><div></div></div>`
+        :`<div class="aviso b">O processo continua em aberto: restam
+            ${(sit?sit.ativos+sit.pendentes:1)-1} formulário(s) deste SEI por encerrar.
+            A conclusão será oferecida ao encerrar o último.</div>`}
+    </fieldset>`,
+    [{rot:"Cancelar",cls:"ghost",fn:fecharModal},
+     {rot:"Encerrar e registrar",cls:"ok",fn:confirmar}],
+    "wide");
+
+  async function confirmar(){
+    const texto=$("#ec_resumo").value.trim();
+    const concluir=seraUltimo && $("#ec_concluir") && $("#ec_concluir").checked;
+    const dataConc=$("#ec_data")?$("#ec_data").value:hoje();
+
+    const {error}=await sb.from("av_formularios")
+      .update({status:'encerrado',concluido_em:new Date().toISOString()}).eq("id",f.id);
+    if(error){toast("Erro ao encerrar: "+error.message);return;}
+
+    let avisoOGM="";
+    if(f.numero_sei){
+      try{
+        const {data:proc}=await sbo.from("processos").select("id,status")
+          .eq("numero_sei",f.numero_sei).limit(1).single();
+        if(proc){
+          await sbo.from("tratativas").insert({processo_id:proc.id,
+            tipo:'Nota de Esclarecimento Técnico', texto, autor:EU||'Ouvidoria-Geral',
+            data:hoje()});
+          if(concluir){
+            await sbo.from("processos").update({status:'Concluído',
+              resposta_conclusiva_data:dataConc,
+              updated_at:new Date().toISOString()}).eq("id",proc.id);
+            avisoOGM=" O processo foi concluído.";
+          }
+        }else{ avisoOGM=" Não encontrei o processo pelo número SEI — registre a tratativa manualmente."; }
+      }catch(e){ avisoOGM=" A tratativa não foi gravada no processo: "+e.message; }
+    }
+
+    await sb.rpc('av_notificar',{
+      p_chave:`encerrado:form:${f.id}`, p_origem:'avaliacao', p_tipo:'formulario_encerrado',
+      p_criticidade:'baixa', p_titulo:`Coleta encerrada — ${f.nome}`,
+      p_descricao:`${lista.length} entrevista(s), índice ${num(idx)}, ${alertas} alerta(s).${concluir?' Processo concluído.':''}`,
+      p_sei:f.numero_sei||null, p_ref_tipo:'formulario', p_ref_id:f.id, p_acao:null});
+
+    fecharModal();
+    await carregarFormularios();renderGestao();atualizarBadge();
+    toast("Coleta encerrada."+avisoOGM);
+  }
+}
 async function clonar(id){
   const f=FORMS.find(x=>x.id===id);
   const nome=prompt("Nome da nova versão:",f.nome.replace(/ \(v\d+\)$/,'')+" — nova edição");
   if(nome===null)return;
-  const {data,error}=await sb.rpc('av_clonar_formulario',{p_id:id,p_nome:nome});
+  const sei=prompt("Número SEI do processo da nova edição:\n\nCada edição da avaliação abre o seu próprio processo. Deixe em branco para vincular depois — o formulário não poderá ser ativado até que o SEI seja informado.","");
+  if(sei===null)return;
+  const {data,error}=await sb.rpc('av_clonar_formulario',{p_id:id,p_nome:nome,p_sei:sei.trim()||null});
   if(error){toast("Erro ao clonar: "+error.message);return;}
   await carregarFormularios();
   toast("Nova versão criada em rascunho. Revise os quesitos antes de publicar.");
   abrirEditor(data);
 }
-async function novoFormulario(){
-  const nome=prompt("Nome do formulário:\n\nEx.: Atendimento nas UBS — 2º semestre de 2026");
-  if(!nome)return;
-  const codigo=await proximoCodigo('FORM');
-  const {data,error}=await sb.from("av_formularios")
-    .insert({codigo,nome,status:'rascunho',criado_por:'Ouvidoria-Geral'}).select("id").single();
-  if(error){toast(error.message);return;}
-  await carregarFormularios();abrirEditor(data.id);
+/* popup de criação — chamado pelo Controle de Processos, já com os dados do SEI */
+function formNovoFormulario(base){
+  base=base||{};
+  const tax=AUX.taxonomia||[];
+  const areas=[...new Set(tax.map(t=>t.area))].sort(byPt());
+  const orgaos=(AUX.orgaos||[]).slice().sort(byPt('sigla'));
+  if(!base.numero_sei){
+    toast("Formulários são criados a partir de um processo do Controle de Processos.");
+    return;
+  }
+  modal("Novo formulário de avaliação",`
+    <div class="aviso b">Este formulário ficará vinculado ao processo
+      <b>SEI ${esc(base.numero_sei)}</b>. A classificação temática veio do processo e
+      pode ser ajustada aqui.</div>
+    <fieldset><legend>Processo vinculado</legend>
+      <div class="frow">
+        <div><label class="f">Número SEI
+          <span class="hint">Herdado do processo. Só é editável enquanto o formulário for rascunho.</span></label>
+          <input id="n_sei" value="${esc(base.numero_sei)}"></div>
+        <div><label class="f">Órgão responsável pelo serviço</label>
+          <select id="n_org"><option value="">Selecione</option>
+          ${orgaos.map(o=>`<option value="${esc(o.sigla)}" ${o.sigla===base.ogm_orgao?'selected':''}>${esc(o.sigla)} — ${esc(o.nome)}</option>`).join("")}</select></div>
+      </div>
+    </fieldset>
+    <fieldset><legend>Identificação</legend>
+      <div class="frow one"><div><label class="f">Nome do formulário
+        <span class="hint">Identifica a edição: serviço e período. Ex.: "Casa Lar — Abril 2026".</span></label>
+        <input id="n_nome" placeholder="Ex.: Atendimento nas UBS — 2º semestre de 2026"></div></div>
+      <div class="frow one"><div><label class="f">Serviço público avaliado</label>
+        <input id="n_serv" value="${esc(base.servico||'')}"
+          placeholder="Ex.: Serviço de Acolhimento Institucional na modalidade Casa Lar"></div></div>
+      <div class="frow one"><div><label class="f">Descrição e motivação
+        <span class="hint">Fundamento da avaliação: recomendação, denúncia, plano de trabalho, rotina de fiscalização.</span></label>
+        <textarea id="n_desc"></textarea></div></div>
+      <div class="frow one"><div><label class="f">Público-alvo</label>
+        <input id="n_pub" placeholder="Ex.: usuários do serviço e equipe da unidade"></div></div>
+    </fieldset>
+    <fieldset><legend>Período de coleta</legend>
+      <div class="frow three">
+        <div><label class="f">Início</label><input type="date" id="n_ini" value="${hoje()}"></div>
+        <div><label class="f">Fim</label><input type="date" id="n_fim"></div>
+        <div><label class="f">Segmenta por faixa etária?
+          <span class="hint">Serviços com público adulto normalmente não segmentam.</span></label>
+          <select id="n_faixas">
+            <option value="0">Não — público único</option>
+            <option value="1">Sim — perfis por idade</option>
+          </select></div>
+      </div>
+    </fieldset>
+    <fieldset><legend>Classificação, herdada do processo</legend>
+      <div class="frow">
+        <div><label class="f">Área temática</label>
+          <select id="n_area"><option value="">Selecione</option>
+          ${areas.map(a=>`<option ${a===base.ogm_area?'selected':''}>${esc(a)}</option>`).join("")}</select></div>
+        <div><label class="f">Subárea</label><select id="n_sub"></select></div>
+      </div>
+      <div class="frow one"><div><label class="f">ODS relacionados</label>
+        <div id="n_ods" style="display:flex;flex-wrap:wrap;gap:5px;border:1px solid var(--linha);border-radius:8px;padding:8px;max-height:100px;overflow:auto"></div></div></div>
+      <div class="frow one"><div><label class="f">Metas dos ODS</label>
+        <div id="n_metas" style="border:1px solid var(--linha);border-radius:8px;padding:8px;max-height:180px;overflow:auto"></div></div></div>
+    </fieldset>
+    <fieldset><legend>Ponto de partida</legend>
+      <div class="frow one"><div><label class="f">Como montar as perguntas</label>
+        <select id="n_modelo">
+          <option value="vazio">Começar do zero</option>
+          ${FORMS.filter(f=>f.status!=='descartado').map(f=>
+            `<option value="${f.id}">Copiar de: ${esc(f.nome)} · v${f.versao}</option>`).join("")}
+        </select>
+        <div class="hint" style="margin-top:6px;color:var(--muted);font-size:11.5px">
+          Copiar traz eixos, perfis, blocos e perguntas do formulário escolhido, que você revisa
+          antes de publicar. As unidades e as respostas não são copiadas.</div></div></div>
+    </fieldset>`,
+    [{rot:"Cancelar",cls:"ghost",fn:fecharModal},
+     {rot:"Criar formulário",cls:"primary",fn:criar}],
+    "wide");
+
+  const pintaSub=()=>{
+    const a=$("#n_area").value;
+    const subs=tax.filter(t=>t.area===a).map(t=>t.subarea).sort(byPt());
+    $("#n_sub").innerHTML=`<option value="">Selecione</option>`+
+      subs.map(x=>`<option ${x===base.ogm_subarea?'selected':''}>${esc(x)}</option>`).join("");
+  };
+  on("#n_area","change",()=>{pintaSub();});pintaSub();
+
+  const odsSel=new Set((base.ogm_ods||[]).map(Number));
+  const pintaOds=()=>{
+    $("#n_ods").innerHTML=(AUX.ods||[]).map(o=>
+      `<label class="chip ${odsSel.has(o.numero)?'blue':'gray'}" style="cursor:pointer" title="${esc(o.nome)}">
+        <input type="checkbox" class="n_o" value="${o.numero}" ${odsSel.has(o.numero)?'checked':''}
+          style="width:auto;margin-right:4px">${o.numero}</label>`).join("");
+    $$(".n_o").forEach(c=>c.onchange=()=>{
+      c.checked?odsSel.add(+c.value):odsSel.delete(+c.value);pintaOds();pintaMetas();});
+  };
+  const mSel=new Set(base.ogm_ods_metas||[]);
+  const pintaMetas=()=>{
+    const metas=(AUX.ods_metas||[]).filter(m=>odsSel.has(Number(m.ods_numero)));
+    $("#n_metas").innerHTML=metas.length?metas.map(m=>
+      `<label class="check" style="font-weight:500;font-size:12.5px">
+        <input type="checkbox" class="n_m" value="${esc(m.codigo)}" ${mSel.has(m.codigo)?'checked':''}>
+        <span><b>${esc(m.codigo)}</b> ${esc(m.texto||'')}</span></label>`).join("")
+      :`<div style="color:var(--muted);font-size:12.5px">Selecione um ODS para listar as metas.</div>`;
+    $$(".n_m").forEach(c=>c.onchange=()=>{c.checked?mSel.add(c.value):mSel.delete(c.value);});
+  };
+  pintaOds();pintaMetas();
+
+  async function criar(){
+    const nome=$("#n_nome").value.trim();
+    const sei=$("#n_sei").value.trim();
+    if(!nome){toast("Dê um nome ao formulário.");return;}
+    if(!sei){toast("O formulário precisa estar vinculado a um processo.");return;}
+    const ini=$("#n_ini").value, fim=$("#n_fim").value;
+    if(ini&&fim&&fim<ini){toast("A data final não pode ser anterior à inicial.");return;}
+    const codigo=await proximoCodigo('FORM');
+    const rec={
+      codigo, nome, numero_sei:sei,
+      ogm_processo_id:base.ogm_processo_id||null,
+      servico:$("#n_serv").value.trim()||null,
+      descricao:$("#n_desc").value.trim()||null,
+      publico_alvo:$("#n_pub").value.trim()||null,
+      data_inicio:ini||null, data_fim:fim||null,
+      usa_faixas:$("#n_faixas").value==="1",
+      ogm_area:$("#n_area").value||null, ogm_subarea:$("#n_sub").value||null,
+      ogm_orgao:$("#n_org").value||null, ogm_eixo:base.ogm_eixo||null,
+      ogm_ods:[...odsSel], ogm_ods_metas:[...mSel],
+      status:'rascunho', criado_por:EU||'Ouvidoria-Geral'
+    };
+    const {data,error}=await sb.from("av_formularios").insert(rec).select("id").single();
+    if(error){toast("Erro ao criar: "+error.message);return;}
+    const id=data.id;
+
+    const modelo=$("#n_modelo").value;
+    if(modelo!=="vazio"){
+      const ok=await copiarEstrutura(+modelo,id,rec.usa_faixas);
+      if(!ok)toast("Formulário criado, mas a cópia da estrutura falhou. Monte as perguntas no editor.");
+    }else if(!rec.usa_faixas){
+      await sb.from("av_faixas").insert({formulario_id:id,codigo:'UNICO',
+        nome:'Participante',modo_visual:'texto',ordem:1,
+        orientacao:'Perfil único: o formulário não segmenta por faixa etária.'});
+    }
+    fecharModal();
+    await carregarFormularios();
+    toast("Formulário criado em rascunho. Revise os quesitos antes de publicar.");
+    abrirEditor(id);
+  }
+}
+
+/* copia eixos, perfis, blocos e perguntas de um formulário para outro */
+async function copiarEstrutura(origemId,destinoId,usaFaixas){
+  const O=await carregarFormCompleto(origemId);
+  if(!O)return false;
+  try{
+    const mapaE={};
+    if((O.eixos||[]).length){
+      const {data:eixos,error}=await sb.from("av_eixos").insert((O.eixos||[]).map((e,i)=>({
+        formulario_id:destinoId,codigo:e.codigo,nome:e.nome,icone:e.icone,cor:e.cor,ordem:i+1
+      }))).select("id,codigo");
+      if(error)throw error;
+      (eixos||[]).forEach(e=>mapaE[e.codigo]=e.id);
+    }
+    const faixasOrig=usaFaixas?(O.faixas||[]):[];
+    if(faixasOrig.length){
+      const {error}=await sb.from("av_faixas").insert(faixasOrig.map((x,i)=>({
+        formulario_id:destinoId,codigo:x.codigo,nome:x.nome,idade_min:x.idade_min,
+        idade_max:x.idade_max,modo_visual:x.modo_visual,duracao_min:x.duracao_min,
+        orientacao:x.orientacao,ordem:i+1})));
+      if(error)throw error;
+    }else{
+      const {error}=await sb.from("av_faixas").insert({formulario_id:destinoId,codigo:'UNICO',
+        nome:'Participante',modo_visual:'texto',ordem:1,
+        orientacao:'Perfil único: o formulário não segmenta por faixa etária.'});
+      if(error)throw error;
+    }
+    const mapaB={};
+    for(let i=0;i<(O.blocos||[]).length;i++){
+      const b=O.blocos[i];
+      const ec=((O.eixos||[]).find(x=>x.id===b.eixo_id)||{}).codigo;
+      const {data,error}=await sb.from("av_blocos").insert({
+        formulario_id:destinoId,eixo_id:ec?mapaE[ec]:null,
+        titulo:b.titulo,descricao:b.descricao,ordem:i+1}).select("id").single();
+      if(error)throw error;
+      mapaB[b.id]=data.id;
+    }
+    const perg=(O.perguntas||[]);
+    if(perg.length){
+      const {error}=await sb.from("av_perguntas").insert(perg.map((q,i)=>{
+        const ec=((O.eixos||[]).find(x=>x.id===q.eixo_id)||{}).codigo;
+        return {formulario_id:destinoId,bloco_id:mapaB[q.bloco_id]??null,
+          eixo_id:ec?mapaE[ec]:null,codigo:q.codigo,enunciado:q.enunciado,tipo:q.tipo,
+          opcoes:q.opcoes,obrigatoria:q.obrigatoria,critica:q.critica,
+          faixas:usaFaixas?(q.faixas||[]):['UNICO'],
+          orientacao:q.orientacao,ordem:i+1};}));
+      if(error)throw error;
+    }
+    return true;
+  }catch(e){return false;}
 }
 
 /* ---------------- editor ---------------- */
@@ -1580,6 +1916,16 @@ function edDados(ro){
   const areas=[...new Set(tax.map(t=>t.area))].sort(byPt());
   const orgaos=(AUX.orgaos||[]).slice().sort(byPt('sigla'));
   $("#ed_corpo").innerHTML=`
+    <fieldset><legend>Processo vinculado</legend>
+      <div class="frow">
+        <div><label class="f">Número SEI
+          <span class="hint">Sem ele o formulário não pode ser ativado. Editável apenas em rascunho.</span></label>
+          <input id="d_sei" value="${esc(f.numero_sei||'')}" ${dis(ro||f.status!=='rascunho')}></div>
+        <div style="align-self:end;padding-bottom:9px">
+          ${f.numero_sei?`<a class="btn ghost sm" href="index.html" target="_blank" style="text-decoration:none">Abrir no Controle de Processos</a>`
+            :`<span class="chip red">sem processo vinculado</span>`}</div>
+      </div>
+    </fieldset>
     <fieldset><legend>Identificação</legend>
       <div class="frow one"><div><label class="f">Nome do formulário</label>
         <input id="d_nome" value="${esc(f.nome)}" ${dis(ro)}></div></div>
@@ -1602,7 +1948,7 @@ function edDados(ro){
       </div>
     </fieldset>
     <fieldset><legend>Classificação no Controle de Processos</legend>
-      <p class="lead">Preenche automaticamente o processo aberto no OGM quando um encaminhamento é aprovado.</p>
+      <p class="lead">Herdada do processo vinculado. Acompanha os resultados nos painéis e relatórios.</p>
       <div class="frow">
         <div><label class="f">Área temática</label>
           <select id="d_area" ${dis(ro)}><option value="">Selecione</option>
@@ -1620,23 +1966,9 @@ function edDados(ro){
         <span class="hint">Marque as metas da Agenda 2030 a que a avaliação se vincula.</span></label>
         <div id="d_metas" style="border:1px solid var(--linha);border-radius:8px;padding:8px;max-height:210px;overflow:auto"></div></div></div>
     </fieldset>
-    <fieldset><legend>Regra de encaminhamento</legend>
-      <div class="frow">
-        <div><label class="f">Quando gerar encaminhamento ao OGM</label>
-          <select id="d_regra" ${dis(ro)}>
-            <option value="alerta" ${f.regra_encaminhamento==='alerta'?'selected':''}>Quando houver alerta no período</option>
-            <option value="negativa" ${f.regra_encaminhamento==='negativa'?'selected':''}>Quando houver avaliação negativa</option>
-            <option value="todas" ${f.regra_encaminhamento==='todas'?'selected':''}>Sempre, ao encerrar o período</option>
-            <option value="manual" ${f.regra_encaminhamento==='manual'?'selected':''}>Somente quando eu decidir</option>
-          </select></div>
-        <div><label class="f">Gera encaminhamento?</label>
-          <select id="d_gera" ${dis(ro)}>
-            <option value="1" ${f.gera_encaminhamento?'selected':''}>Sim</option>
-            <option value="0" ${!f.gera_encaminhamento?'selected':''}>Não</option></select></div>
-      </div>
-      <div class="aviso b">O encaminhamento nunca é automático: a fila de revisão é sempre a sua,
-        e o processo só é aberto no OGM depois que você confirmar.</div>
-    </fieldset>
+    <div class="aviso b">Ao encerrar o período de coleta, os resultados consolidados são
+      registrados como tratativa no processo vinculado. Quando este for o último formulário
+      do processo, o sistema oferece a conclusão dele.</div>
     ${ro?'':`<button class="btn primary" id="d_salvar">Salvar dados gerais</button>`}`;
 
   const pintaSub=()=>{
@@ -1664,6 +1996,7 @@ function edDados(ro){
   async function coletarDados(silencioso){
     const rec={
       nome:$("#d_nome").value.trim(), servico:$("#d_serv").value.trim()||null,
+      numero_sei:($("#d_sei")?$("#d_sei").value.trim():f.numero_sei)||null,
       descricao:$("#d_desc").value.trim()||null, publico_alvo:$("#d_pub").value.trim()||null,
       data_inicio:$("#d_ini").value||null, data_fim:$("#d_fim").value||null,
       usa_faixas:$("#d_faixas").value==="1",
@@ -1671,8 +2004,6 @@ function edDados(ro){
       ogm_orgao:$("#d_org").value||null,
       ogm_ods:$$(".d_o").filter(c=>c.checked).map(c=>+c.value),
       ogm_ods_metas:$$(".d_m").filter(c=>c.checked).map(c=>c.value),
-      regra_encaminhamento:$("#d_regra").value,
-      gera_encaminhamento:$("#d_gera").value==="1"
     };
     Object.assign(GESTAO.form.formulario,rec);
     if(silencioso)return;
