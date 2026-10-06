@@ -813,7 +813,8 @@ async function renderPainel(){
     <div class="sec-title">Análise georreferenciada</div>
     <div class="charts">
       <div class="card chart-card" style="grid-column:1 / -1">
-        <h3>Mapa de calor por bairro</h3><p class="cap">${S.geo_total||0} de ${total} processo(s) localizado(s) — concentração por bairro</p>
+        <h3 id="mapa_titulo" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px" title="Clique para ampliar e analisar">Mapa de calor <span style="font-size:12px;color:var(--azul);font-weight:700">⤢ ampliar</span></h3>
+        <p class="cap">${S.geo_total||0} de ${total} processo(s) localizado(s) — calor + pontos clicáveis. Clique no título para ampliar.</p>
         <div id="mapa"></div>
         ${!S.geo_total?'<p class="muted small" style="margin-top:10px">Cadastre o endereço nos processos (campo Localização) para vê-los no mapa.</p>':''}
       </div>
@@ -859,18 +860,121 @@ async function renderPainel(){
   mkChart('ch_tipoirr','bar',CGM.tipo.map(x=>x[0]),CGM.tipo.map(x=>x[1]),{horizontal:true,color:'#7A5CF0'});
 
   if(typeof L!=='undefined' && document.getElementById('mapa')){
-    PAINEL_MAP=L.map('mapa').setView([-23.3103,-51.1628],12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(PAINEL_MAP);
-    const heat=(S.heat||[]).map(x=>[Number(x[1]),Number(x[2]),Number(x[3])]).filter(x=>isFinite(x[0])&&isFinite(x[1]));
-    const maxN=Math.max(1,...heat.map(x=>x[2]));
-    if(typeof L.heatLayer==='function' && heat.length){
-      L.heatLayer(heat,{radius:38,blur:28,max:maxN,minOpacity:.4,
-        gradient:{0.2:'#20BF40',0.5:'#EDA704',0.8:'#F26522',1:'#E23B2E'}}).addTo(PAINEL_MAP);
-    }
-    const pts=heat.map(x=>[x[0],x[1]]);
-    if(pts.length)PAINEL_MAP.fitBounds(pts,{padding:[50,50],maxZoom:14});
-    setTimeout(()=>PAINEL_MAP.invalidateSize(),200);
+    // carrega os pontos individuais (processos georreferenciados) e monta calor + marcadores
+    carregarPontosMapa().then(pontos=>{
+      MAPA_PONTOS=pontos;
+      PAINEL_MAP=montarMapaCalor('mapa',pontos,{});
+      const t=$("#mapa_titulo");
+      if(t)t.onclick=()=>abrirMapaAmpliado();
+    });
   }
+}
+
+/* ===== MAPA DE CALOR — pontos individuais, reutilizável e ampliável ===== */
+let MAPA_PONTOS=[];      // cache dos pontos georreferenciados
+let MAPA_MODAL=null;     // instância do mapa ampliado
+
+// carrega os processos com coordenadas (paginado, campos leves para o popup)
+async function carregarPontosMapa(){
+  const cols="id,numero_sei,latitude,longitude,bairro,area,subarea,tipo_demanda,status";
+  let todos=[], from=0; const passo=1000;
+  for(let i=0;i<60;i++){
+    const {data,error}=await sb.from("processos").select(cols)
+      .not("latitude","is",null).not("longitude","is",null).range(from,from+passo-1);
+    if(error||!data||!data.length)break;
+    todos=todos.concat(data);
+    if(data.length<passo)break;
+    from+=passo;
+  }
+  return todos.filter(p=>isFinite(+p.latitude)&&isFinite(+p.longitude));
+}
+
+// cor do marcador por situação (reaproveita a paleta do sistema)
+function corSituacao(s){
+  const m={"Concluído":"#20BF40","Arquivado":"#9aa4bd","Em análise":"#0056EF","Aguardando informações":"#EDA704",
+    "Habilitado":"#1a8f33","Em tramitação externa":"#F26522","Respondido ao usuário":"#12A5B4","Não habilitada":"#E23B2E"};
+  return m[s]||"#5a6480";
+}
+
+// monta um mapa com camada de calor + marcadores clicáveis (os dois juntos)
+function montarMapaCalor(containerId,pontos,opts){
+  opts=opts||{};
+  const el=document.getElementById(containerId);
+  if(!el||typeof L==='undefined')return null;
+  const map=L.map(containerId,{preferCanvas:true}).setView([-23.3103,-51.1628],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+
+  const grupoCalor=L.layerGroup().addTo(map);
+  const grupoPontos=L.layerGroup().addTo(map);
+
+  function desenhar(lista){
+    grupoCalor.clearLayers(); grupoPontos.clearLayers();
+    const coords=lista.map(p=>[+p.latitude,+p.longitude]).filter(c=>isFinite(c[0])&&isFinite(c[1]));
+    if(!coords.length)return;
+    // camada de calor — max escala com a densidade para as concentrações se destacarem
+    if(typeof L.heatLayer==='function'){
+      const maxInt=Math.max(4,Math.round(coords.length/35));
+      L.heatLayer(coords.map(c=>[c[0],c[1],1]),{radius:28,blur:22,max:maxInt,minOpacity:.3,
+        gradient:{0.2:'#20BF40',0.5:'#EDA704',0.8:'#F26522',1:'#E23B2E'}}).addTo(grupoCalor);
+    }
+    // marcadores clicáveis (sempre visíveis, junto do calor)
+    lista.forEach(p=>{
+      const la=+p.latitude, lo=+p.longitude;
+      if(!isFinite(la)||!isFinite(lo))return;
+      const mk=L.circleMarker([la,lo],{radius:5,weight:1.5,color:'#fff',
+        fillColor:corSituacao(p.status),fillOpacity:.95});
+      mk.bindPopup(
+        `<b>${esc(p.numero_sei||'(sem SEI)')}</b><br>`+
+        `${esc(p.tipo_demanda||'—')}<br>`+
+        `<span style="color:#6b7690">${esc(p.bairro||'bairro não informado')}</span>`,
+        {closeButton:true});
+      mk.addTo(grupoPontos);
+    });
+    const b=L.latLngBounds(coords);
+    if(b.isValid())map.fitBounds(b,{padding:[40,40],maxZoom:15});
+  }
+
+  desenhar(pontos);
+  map._desenhar=desenhar;  // exposto para os filtros do mapa ampliado
+  setTimeout(()=>map.invalidateSize(),200);
+  return map;
+}
+
+// janela ampliada do mapa, com filtros de tipo, área e situação
+function abrirMapaAmpliado(){
+  const pontos=MAPA_PONTOS||[];
+  const tipos=[...new Set(pontos.map(p=>p.tipo_demanda).filter(Boolean))].sort(byPt());
+  const areas=[...new Set(pontos.map(p=>p.area).filter(Boolean))].sort(byPt());
+  const sits =[...new Set(pontos.map(p=>p.status).filter(Boolean))].sort(byPt());
+  const op=arr=>arr.map(x=>`<option>${esc(x)}</option>`).join("");
+  modalRoot.innerHTML=`<div class="overlay"><div class="modal" style="max-width:1100px;width:96vw">
+    <div class="modal-head"><h3>Mapa de calor — análise</h3><button class="x" id="mx">×</button></div>
+    <div class="modal-body" style="max-height:86vh">
+      <div class="toolbar">
+        <select id="mf_tipo"><option value="">Todas as tipologias</option>${op(tipos)}</select>
+        <select id="mf_area"><option value="">Todas as áreas</option>${op(areas)}</select>
+        <select id="mf_sit"><option value="">Todas as situações</option>${op(sits)}</select>
+        <button class="btn ghost sm" id="mf_limpar">Limpar</button>
+        <span class="muted small" style="margin-left:auto" id="mf_count"></span>
+      </div>
+      <div id="mapa_big" style="height:68vh;border-radius:10px;border:1px solid var(--linha)"></div>
+      <p class="muted small" style="margin-top:8px">Calor mostra a concentração; cada ponto é um processo (clique para ver SEI, tipo e bairro). Cor do ponto = situação.</p>
+    </div>
+  </div></div>`;
+  const close=()=>{ if(MAPA_MODAL){try{MAPA_MODAL.remove();}catch(e){}MAPA_MODAL=null;} modalRoot.innerHTML=""; };
+  $("#mx").onclick=close;
+  MAPA_MODAL=montarMapaCalor('mapa_big',pontos,{});
+  const aplicar=()=>{
+    const ft=$("#mf_tipo").value, fa=$("#mf_area").value, fs=$("#mf_sit").value;
+    const lista=pontos.filter(p=>(!ft||p.tipo_demanda===ft)&&(!fa||p.area===fa)&&(!fs||p.status===fs));
+    if(MAPA_MODAL&&MAPA_MODAL._desenhar)MAPA_MODAL._desenhar(lista);
+    const c=$("#mf_count");if(c)c.textContent=lista.length+" processo(s) no mapa";
+  };
+  $("#mf_tipo").onchange=aplicar;$("#mf_area").onchange=aplicar;$("#mf_sit").onchange=aplicar;
+  $("#mf_limpar").onclick=()=>{$("#mf_tipo").value="";$("#mf_area").value="";$("#mf_sit").value="";aplicar();};
+  aplicar();
+  setTimeout(()=>{if(MAPA_MODAL)MAPA_MODAL.invalidateSize();},250);
 }
 
 /* ================= LISTA DE PROCESSOS ================= */
