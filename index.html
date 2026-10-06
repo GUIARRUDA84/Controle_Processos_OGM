@@ -447,7 +447,7 @@ function bindNav(){
   if(b)b.onclick=()=>{limparAviso();go(view);};
   const bp=$("#aviso-prazo");
   if(bp)bp.onclick=()=>{ // abre a lista já filtrada pelos vencidos
-    filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:"venc",de:"",ate:""};
+    filtro={q:"",status:"",tipo:"",area:"",ext:"",servidor:"",orgao:"",prazo:"venc",de:"",ate:""};
     PG.page=0; go("processos");
   };
   $("#nav").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;go(b.dataset.v);});
@@ -821,7 +821,7 @@ async function renderPainel(){
     </div>`;
 
   $("#refresh").onclick=()=>{invalidarCache();renderPainel();};
-  const irParaFiltro=(v)=>{filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:v,de:"",ate:""};PG.page=0;go("processos");};
+  const irParaFiltro=(v)=>{filtro={q:"",status:"",tipo:"",area:"",ext:"",servidor:"",orgao:"",prazo:v,de:"",ate:""};PG.page=0;go("processos");};
   if($("#kpi_fora20"))$("#kpi_fora20").onclick=()=>irParaFiltro("fora20");
   if($("#kpi_fora30"))$("#kpi_fora30").onclick=()=>irParaFiltro("fora30");
   if($("#kpi_semprazo"))$("#kpi_semprazo").onclick=()=>irParaFiltro("semprazo");
@@ -874,7 +874,7 @@ async function renderPainel(){
 }
 
 /* ================= LISTA DE PROCESSOS ================= */
-let filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};
+let filtro={q:"",status:"",tipo:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};
 let buscaTimer=null;
 let PRAZO_SRC=null; // "vw_processos" se a visão existir; senão "processos"
 async function fontePrazo(){
@@ -888,6 +888,7 @@ async function fontePrazo(){
 
 async function renderProcessos(){
   const statusOpts=[...AUX.status].sort(byPt()).map(s=>`<option>${esc(s)}</option>`).join("");
+  const tipoOpts=[...(AUX.tipos_demanda||[])].sort(byPt()).map(t=>`<option>${esc(t)}</option>`).join("");
   const areaOpts=[...new Set(AUX.taxonomia.map(t=>t.area))].sort(byPt()).map(a=>`<option>${esc(a)}</option>`).join("");
   const servOpts=[...AUX.servidores].sort(byPt('nome')).map(s=>`<option>${esc(s.nome)}</option>`).join("");
   const orgOpts=[...AUX.orgaos].sort(byPt('sigla')).map(o=>`<option value="${esc(o.sigla)}">${esc(o.sigla)} — ${esc(o.nome)}</option>`).join("");
@@ -901,6 +902,7 @@ async function renderProcessos(){
       </div>
       <div class="toolbar">
         <select id="fstatus"><option value="">Todas as situações</option>${statusOpts}</select>
+        <select id="ftipo"><option value="">Todas as tipologias</option>${tipoOpts}</select>
         <select id="farea"><option value="">Todas as áreas</option>${areaOpts}</select>
         <select id="fext"><option value="">Tramitação (todas)</option><option value="sim">Em tramitação externa</option><option value="nao">Dentro da OGM</option></select>
         <select id="fserv"><option value="">Todos os servidores</option>${servOpts}</select>
@@ -933,7 +935,7 @@ async function renderProcessos(){
     buscaTimer=setTimeout(()=>{PG.page=0;fetchRows();},400);}); // espera parar de digitar
   const bind=(id,campo)=>{const el=$(id);el.value=filtro[campo];
     el.onchange=e=>{filtro[campo]=e.target.value;PG.page=0;fetchRows();};};
-  bind("#fstatus","status");bind("#farea","area");bind("#fext","ext");
+  bind("#fstatus","status");bind("#ftipo","tipo");bind("#farea","area");bind("#fext","ext");
   bind("#fserv","servidor");bind("#forgao","orgao");bind("#fprazo","prazo");
   bind("#fde","de");bind("#fate","ate");
   await fontePrazo();
@@ -942,7 +944,7 @@ async function renderProcessos(){
     if(filtro.prazo==="fora" && PRAZO_SRC!=="vw_processos")
       toast("Para este filtro, rode o script prazo_situacao.sql no Supabase.");
   });
-  $("#flimpar").onclick=()=>{filtro={q:"",status:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};PG.page=0;renderProcessos();};
+  $("#flimpar").onclick=()=>{filtro={q:"",status:"",tipo:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};PG.page=0;renderProcessos();};
   $("#pgprev").onclick=()=>{if(PG.page>0){PG.page--;fetchRows();}};
   $("#pgnext").onclick=()=>{if((PG.page+1)*PG.size<PG.total){PG.page++;fetchRows();}};
   await fetchRows();
@@ -954,6 +956,7 @@ function queryProcessos(sel,opts){
   const usaView = PRAZO_SRC==="vw_processos" && (filtro.prazo==="venc"||filtro.prazo==="fora"||filtro.prazo==="ok"||filtro.prazo==="prorrog_fora");
   let q=sb.from(usaView?"vw_processos":"processos").select(sel,opts);
   if(filtro.status)q=q.eq("status",filtro.status);
+  if(filtro.tipo)q=q.eq("tipo_demanda",filtro.tipo);
   if(filtro.area)q=q.eq("area",filtro.area);
   if(filtro.servidor)q=q.eq("servidor",filtro.servidor);
   if(filtro.ext==="sim")q=q.eq("tramitacao_ext",true);
