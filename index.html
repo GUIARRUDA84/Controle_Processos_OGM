@@ -915,8 +915,11 @@ function montarMapaCalor(containerId,pontos,opts){
     // camada de calor — max escala com a densidade para as concentrações se destacarem
     if(typeof L.heatLayer==='function'){
       const maxInt=Math.max(4,Math.round(coords.length/35));
-      L.heatLayer(coords.map(c=>[c[0],c[1],1]),{radius:28,blur:22,max:maxInt,minOpacity:.3,
-        gradient:{0.2:'#20BF40',0.5:'#EDA704',0.8:'#F26522',1:'#E23B2E'}}).addTo(grupoCalor);
+      const hl=L.heatLayer(coords.map(c=>[c[0],c[1],1]),{radius:28,blur:22,max:maxInt,minOpacity:.3,
+        gradient:{0.2:'#20BF40',0.5:'#EDA704',0.8:'#F26522',1:'#E23B2E'}});
+      hl.addTo(grupoCalor);
+      // o calor é só visual: não deve capturar cliques, senão cobre os pontos
+      if(hl._canvas) hl._canvas.style.pointerEvents="none";
     }
     // marcadores clicáveis (sempre visíveis, junto do calor)
     lista.forEach(p=>{
