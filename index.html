@@ -1199,15 +1199,14 @@ function abrirMapaAmpliado(){
 let filtro={q:"",status:"",tipo:"",area:"",ext:"",servidor:"",orgao:"",prazo:"",de:"",ate:""};
 let buscaTimer=null;
 let PRAZO_SRC=null; // "vw_processos" se a visão existir; senão "processos"
-// descobre uma vez se a função processos_por_tipo() existe no banco
+// descobre uma vez se a visão vw_processos_tipo existe no banco
 async function fonteTipo(){
-  if(TIPO_RPC!==null)return TIPO_RPC;
+  if(TIPO_VIEW!==null)return TIPO_VIEW;
   try{
-    const {error}=await sb.rpc("processos_por_tipo",{p_tipo:"__teste__"})
-      .select("id").limit(1);
-    TIPO_RPC = !error;
-  }catch(e){ TIPO_RPC=false; }
-  return TIPO_RPC;
+    const {error}=await sb.from("vw_processos_tipo").select("id",{head:true,count:"exact"}).limit(1);
+    TIPO_VIEW = !error;
+  }catch(e){ TIPO_VIEW=false; }
+  return TIPO_VIEW;
 }
 async function fontePrazo(){
   if(PRAZO_SRC)return PRAZO_SRC;
@@ -1276,7 +1275,7 @@ async function renderProcessos(){
   bind("#fde","de");bind("#fate","ate");
   await fontePrazo();
   await fonteTipo();
-  if(TIPO_RPC===false){
+  if(TIPO_VIEW===false){
     const el=$("#ftipo");
     if(el)el.title="Para contar também as tipologias registradas nas manifestações, rode o script filtro_tipologia.sql no Supabase.";
   }
@@ -1291,22 +1290,24 @@ async function renderProcessos(){
   await fetchRows();
 }
 
-// a tipologia existe em dois níveis: no cabeçalho do processo e em cada
-// manifestação. A função processos_por_tipo() cobre os dois e ainda tolera
-// variações de acento e caixa vindas das importações. Se ela ainda não existir
-// no banco, o sistema volta ao filtro antigo e avisa na tela.
-let TIPO_RPC=null;   // null = não testado, true = disponível, false = ausente
+// A tipologia existe em dois níveis: no cabeçalho do processo e em cada
+// manifestação. A visão vw_processos_tipo traz, em tipos_norm, o conjunto de
+// todas as tipologias que o processo carrega, já sem acento e em minúsculas —
+// o que também resolve as variantes de grafia vindas das importações.
+// Sem a visão no banco, o sistema volta ao filtro antigo e avisa na tela.
+let TIPO_VIEW=null;   // null = não testado, true = disponível, false = ausente
+// mesma normalização do ogm_norm() do banco
+function normTipo(t){
+  return String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
+}
 function queryProcessos(sel,opts){
   // usa a visão vw_processos (com situacao_prazo) quando o filtro de prazo precisa dela
   const precisaView = (filtro.prazo==="venc"||filtro.prazo==="fora"||filtro.prazo==="ok"||filtro.prazo==="prorrog_fora");
-  const usaView = PRAZO_SRC==="vw_processos" && precisaView && !(filtro.tipo && TIPO_RPC);
-  let q;
-  if(filtro.tipo && TIPO_RPC){
-    q=sb.rpc("processos_por_tipo",{p_tipo:filtro.tipo},opts||{}).select(sel);
-  }else{
-    q=sb.from(usaView?"vw_processos":"processos").select(sel,opts);
-    if(filtro.tipo)q=q.eq("tipo_demanda",filtro.tipo);
-  }
+  const porTipo = !!(filtro.tipo && TIPO_VIEW);
+  const usaView = PRAZO_SRC==="vw_processos" && precisaView && !porTipo;
+  let q=sb.from(porTipo?"vw_processos_tipo":(usaView?"vw_processos":"processos")).select(sel,opts);
+  if(porTipo)      q=q.contains("tipos_norm",[normTipo(filtro.tipo)]);
+  else if(filtro.tipo) q=q.eq("tipo_demanda",filtro.tipo);
   if(filtro.status)q=q.eq("status",filtro.status);
   if(filtro.area)q=q.eq("area",filtro.area);
   if(filtro.servidor)q=q.eq("servidor",filtro.servidor);
@@ -1400,9 +1401,9 @@ async function pintarTotal(rows){
   partes.push(PG.total?`Exibindo <b>${ini}</b> a <b>${fim}</b>.`:"Nenhum processo neste recorte.");
   if(ativos.length)partes.push(`Filtros: ${ativos.join(" · ")}.`);
   else partes.push("Sem filtros — este é o total da base.");
-  if(filtro.tipo && TIPO_RPC)
+  if(filtro.tipo && TIPO_VIEW)
     partes.push("A tipologia considera o cabeçalho do processo e as manifestações.");
-  if(filtro.tipo && TIPO_RPC===false)
+  if(filtro.tipo && TIPO_VIEW===false)
     partes.push("<b style='color:#b45309'>Contagem parcial:</b> só o cabeçalho do processo. Rode filtro_tipologia.sql no Supabase para incluir as manifestações.");
   $("#tb_detalhe").innerHTML=partes.join("<br>");
 
