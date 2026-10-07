@@ -1600,10 +1600,14 @@ function formProcesso(p){
   // manifestações — um processo pode ter cabeçalho "Reclamação" e manifestação "Denúncia"
   const TIPOS_REC=["denuncia","elogio"];
   const normT=t=>String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
+  // MANIFS é declarada com "let" mais abaixo nesta mesma função. Enquanto a
+  // execução não chega lá, qualquer leitura — inclusive com typeof — lança
+  // ReferenceError. O try/catch cobre esse intervalo.
+  function manifsAtuais(){ try{ return MANIFS||[]; }catch(e){ return []; } }
   function permiteRecomendacao(){
-    if(TIPOS_REC.includes(normT($("#tipo_demanda")?$("#tipo_demanda").value:p.tipo_demanda)))return true;
-    const ms=(typeof MANIFS!=="undefined"?MANIFS:[]);
-    return ms.some(m=>TIPOS_REC.includes(normT(m.tipo)));
+    const sel=$("#tipo_demanda");
+    if(TIPOS_REC.includes(normT(sel?sel.value:p.tipo_demanda)))return true;
+    return manifsAtuais().some(m=>TIPOS_REC.includes(normT(m.tipo)));
   }
   function docOpts(sel){
     const lista=[...AUX.tipos_documento].sort(byPt())
@@ -2049,6 +2053,8 @@ function formProcesso(p){
     if(c==="tipo"){
       const box=$("#manif_list").querySelector(`[data-lai="${i}"]`);
       if(box)box.classList.toggle("hidden",!ehLaiTipo(el.value));
+      // a tipologia da manifestação também libera a recomendação
+      if(typeof recAtualizaDocs==="function")recAtualizaDocs();
     }
   });
 
@@ -2120,6 +2126,20 @@ function formProcesso(p){
     });
   }
 
+  // a lista de documentos depende da tipologia: refaz quando ela muda,
+  // preservando o que já estiver selecionado
+  function recAtualizaDocs(){
+    const sel=$("#doc_tipo"); if(!sel)return;
+    const atual=sel.value;
+    sel.innerHTML=docOpts(atual);
+    if(atual && !sel.value){            // a opção deixou de ser permitida
+      sel.value="";
+      if(normT(atual)==="recomendacao" && !RECS.length) docAnterior="";
+    }
+    recPintar();
+  }
+  on("#tipo_demanda","change",recAtualizaDocs);
+
   // selecionar "Recomendação" no tipo de documento abre o cadastro
   on("#doc_tipo","change",async()=>{
     const v=$("#doc_tipo").value;
@@ -2140,7 +2160,8 @@ function formProcesso(p){
     if(!p.id){toast("Salve o processo antes de emitir a recomendação.");return;}
     formRecomendacao(p.id,null,ok=>{if(ok)recCarregar();});
   });
-  recCarregar();
+  // nenhuma falha aqui pode impedir a abertura do processo
+  try{ recCarregar(); }catch(e){ console.error("recomendações:",e); }
 
   // ---------- AVALIAÇÃO DO SERVIÇO PÚBLICO ----------
   const TIPO_AVALIACAO = "Avaliação de Serviço Público";
@@ -2153,7 +2174,7 @@ function formProcesso(p){
   // herda a classificação do processo: área e subárea da primeira manifestação
   // classificada, e a união dos ODS e metas de todas elas
   function avHeranca(){
-    const vivas = (typeof MANIFS !== "undefined" ? MANIFS : []).filter(m => m.area || m.subarea);
+    const vivas = manifsAtuais().filter(m => m.area || m.subarea);
     const base = vivas[0] || {};
     const ods = new Set(), metas = new Set();
     (vivas.length ? vivas : []).forEach(m => {
