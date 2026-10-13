@@ -573,7 +573,7 @@ async function carregarNotificacoes(){
         p_titulo:"Prazo vencido — "+(pr.numero_sei||"processo sem SEI"),
         p_descricao:"Vencido em "+fmtDate(pr.prazo_interno)+", há "+atraso+" dia(s).\n"+
                     (pr.tipo_demanda||"")+(pr.servidor?" · "+pr.servidor:""),
-        p_sei:pr.numero_sei||null, p_ref_tipo:"processo", p_ref_id:pr.id, p_acao:null});
+        p_sei:pr.numero_sei||null, p_ref_tipo:"processo", p_ref_id:String(pr.id), p_acao:null});
     }));
   }catch(e){}
   // recomendações com prazo vencido também viram notificação
@@ -588,7 +588,7 @@ async function carregarNotificacoes(){
       p_descricao:"Prazo vencido em "+fmtDate(r.prazo_resposta)+", há "+
         Math.abs(r.dias_para_prazo||0)+" dia(s).\n"+
         ((r.destinatarios||[]).map(d=>String(d).split(" — ")[0]).join(", ")||""),
-      p_sei:r.numero_sei||null, p_ref_tipo:"processo", p_ref_id:r.processo_id, p_acao:null})));
+      p_sei:r.numero_sei||null, p_ref_tipo:"processo", p_ref_id:String(r.processo_id), p_acao:null})));
   }catch(e){}
 
   const {data,error}=await sbAV.from("av_notificacoes").select("*")
@@ -2091,7 +2091,7 @@ function formProcesso(p){
     return `<span class="chip ${c[0]}">${c[1]}</span>`;
   }
   function recPintar(){
-    const box=$("#rec_lista"); if(!box)return;
+    const box=$("#rec_lista"); if(!box)return;       // formulário já fechado
     const fs=$("#fs_recomendacao");
     if(fs)fs.classList.toggle("hidden",!permiteRecomendacao()&&!RECS.length);
     box.innerHTML=RECS.length?RECS.map(r=>`
@@ -2167,8 +2167,10 @@ function formProcesso(p){
   const TIPO_AVALIACAO = "Avaliação de Serviço Público";
 
   function avVisivel(){
-    const on = $("#tipo_demanda").value === TIPO_AVALIACAO;
-    $("#fs_avaliacao").classList.toggle("hidden", !on);
+    const sel = $("#tipo_demanda"), fs = $("#fs_avaliacao");
+    if(!sel || !fs) return false;
+    const on = sel.value === TIPO_AVALIACAO;
+    fs.classList.toggle("hidden", !on);
     return on;
   }
   // herda a classificação do processo: área e subárea da primeira manifestação
@@ -2191,8 +2193,11 @@ function formProcesso(p){
     };
   }
   async function avPintar(){
+    // o formulário pode ter sido fechado enquanto a consulta estava em curso
+    if(!$("#fs_avaliacao") || !$("#numero_sei")) return;
     if(!avVisivel()) return;
     const box = $("#av_lista"), dica = $("#av_dica");
+    if(!box || !dica) return;
     const sei = $("#numero_sei").value.trim();
     if(!sei){
       box.innerHTML = '<div class="conflito">Informe o número SEI do processo para criar um formulário de avaliação. A coleta precisa estar amarrada a um processo.</div>';
