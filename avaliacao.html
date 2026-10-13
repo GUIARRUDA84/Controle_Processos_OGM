@@ -558,7 +558,7 @@ function ico(nome,cls="eixo-ico",cor=null){
   if(u.get("novo")==="1" && u.get("sei")){
     ir("gestao");
     return formNovoFormulario({
-      numero_sei:u.get("sei"), ogm_processo_id:u.get("pid")?+u.get("pid"):null,
+      numero_sei:u.get("sei"), ogm_processo_id:u.get("pid")||null,
       servico:u.get("servico")||"", ogm_area:u.get("area")||"",
       ogm_subarea:u.get("subarea")||"", ogm_orgao:u.get("orgao")||"",
       ogm_eixo:u.get("eixo")||"",
@@ -1404,7 +1404,7 @@ async function recalcularSituacoes(){
       p_descricao:dias<0
         ?`O período terminou em ${dbr(f.data_fim)} e o formulário continua ativo. Encerre-o para consolidar os resultados no processo.`
         :`O período vai até ${dbr(f.data_fim)}. Verifique se faltam unidades a visitar.`,
-      p_sei:f.numero_sei||null, p_ref_tipo:'formulario', p_ref_id:f.id, p_acao:null}));
+      p_sei:f.numero_sei||null, p_ref_tipo:'formulario', p_ref_id:String(f.id), p_acao:null}));
   });
   FORMS.filter(f=>f.status==="publicado").forEach(f=>{
     tarefas.push(sb.rpc('av_notificar',{
@@ -1412,7 +1412,7 @@ async function recalcularSituacoes(){
       p_criticidade:'baixa', p_titulo:`Aguardando ativação — ${f.nome}`,
       p_descricao:f.numero_sei?'Formulário revisado e publicado, pronto para iniciar a coleta.'
         :'Formulário publicado sem número SEI. Vincule-o a um processo antes de ativar.',
-      p_sei:f.numero_sei||null, p_ref_tipo:'formulario', p_ref_id:f.id, p_acao:null}));
+      p_sei:f.numero_sei||null, p_ref_tipo:'formulario', p_ref_id:String(f.id), p_acao:null}));
   });
   try{
     const {data}=await sbo.from("processos")
@@ -1427,7 +1427,7 @@ async function recalcularSituacoes(){
         p_criticidade:atraso>10?'alta':'media',
         p_titulo:`Prazo vencido — ${pr.numero_sei||'processo sem SEI'}`,
         p_descricao:`Vencido em ${dbr(pr.prazo_interno)}, há ${atraso} dia(s).\n${pr.tipo_demanda||''}${pr.servidor?' · '+pr.servidor:''}`,
-        p_sei:pr.numero_sei||null, p_ref_tipo:'processo', p_ref_id:pr.id,
+        p_sei:pr.numero_sei||null, p_ref_tipo:'processo', p_ref_id:String(pr.id),
         p_acao:'index.html'}));
     });
   }catch(e){}
@@ -1665,7 +1665,7 @@ da Ouvidoria-Geral. Relatório completo disponível em avaliacao.html.`;
       p_chave:`encerrado:form:${f.id}`, p_origem:'avaliacao', p_tipo:'formulario_encerrado',
       p_criticidade:'baixa', p_titulo:`Coleta encerrada — ${f.nome}`,
       p_descricao:`${lista.length} entrevista(s), índice ${num(idx)}, ${alertas} alerta(s).${concluir?' Processo concluído.':''}`,
-      p_sei:f.numero_sei||null, p_ref_tipo:'formulario', p_ref_id:f.id, p_acao:null});
+      p_sei:f.numero_sei||null, p_ref_tipo:'formulario', p_ref_id:String(f.id), p_acao:null});
 
     fecharModal();
     await carregarFormularios();renderGestao();atualizarBadge();
