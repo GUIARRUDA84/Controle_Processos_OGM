@@ -2108,15 +2108,69 @@ function edUnidades(ro){
     ${ro?'':`<button class="btn ghost sm" id="u_add">Adicionar unidade</button>
       <button class="btn ghost sm" id="u_predios" style="margin-left:6px">Importar prédios do OGM</button>
       <button class="btn primary" id="u_salvar" style="margin-left:8px">Salvar unidades</button>`}`;
+  // o código identifica a unidade dentro do formulário e não pode repetir:
+  // é por ele que as respostas são agrupadas nos painéis e relatórios
+  const codigosRepetidos=()=>{
+    const c={};
+    (D.unidades||[]).forEach(u=>{
+      const k=(u.codigo||"").trim().toUpperCase();
+      if(k)c[k]=(c[k]||0)+1;
+    });
+    return new Set(Object.keys(c).filter(k=>c[k]>1));
+  };
+  // sugere um código a partir do nome, para poupar digitação:
+  //   "Casa Lar 03"                -> "CL-03"           (iniciais + número final)
+  //   "Casa Lar Afeto - Primeira"  -> "CASA-LAR-AFETO"  (corta em palavra inteira)
+  const sugereCodigo=(nome,i)=>{
+    const limpo=String(nome||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .toUpperCase().replace(/[^A-Z0-9]+/g," ").trim();
+    if(!limpo)return "U-"+String(i+1).padStart(2,"0");
+    const partes=limpo.split(" ");
+    const fim=partes[partes.length-1];
+    if(/^[0-9]+$/.test(fim)&&partes.length>1){
+      const sigla=partes.slice(0,-1).map(x=>x[0]).join("");
+      return sigla+"-"+fim.padStart(2,"0");
+    }
+    let cod="";
+    for(const x of partes){
+      const t=cod?cod+"-"+x:x;
+      if(t.length>18)break;
+      cod=t;
+    }
+    return cod||partes[0].slice(0,18);
+  };
   const pinta=()=>{
-    $("#lu").innerHTML=(D.unidades||[]).map((u,i)=>`
-      <div class="linha-edit" style="grid-template-columns:140px 1fr 1fr 40px">
-        <input value="${esc(u.codigo)}" data-u="codigo" data-i="${i}" placeholder="CL-01" ${dis(ro)}>
+    const rep=codigosRepetidos();
+    $("#lu").innerHTML=`
+      <div class="linha-edit" style="grid-template-columns:140px 1fr 1fr 40px;border:0;background:none;
+        padding-bottom:0;margin-bottom:4px">
+        <label class="f" style="margin:0">Código</label>
+        <label class="f" style="margin:0">Nome da unidade</label>
+        <label class="f" style="margin:0">Endereço</label><span></span>
+      </div>`+
+      ((D.unidades||[]).map((u,i)=>{
+      const dup=rep.has((u.codigo||"").trim().toUpperCase());
+      return `<div class="linha-edit" style="grid-template-columns:140px 1fr 1fr 40px${dup?';border-color:#f3c9c5;background:#fff6f5':''}">
+        <input value="${esc(u.codigo)}" data-u="codigo" data-i="${i}" placeholder="CL-01" ${dis(ro)}
+          title="Identificador único desta unidade no formulário"
+          ${dup?'style="border-color:var(--vermelho);background:#fff"':''}>
         <input value="${esc(u.nome)}" data-u="nome" data-i="${i}" placeholder="Casa Lar 01" ${dis(ro)}>
         <input value="${esc(u.endereco||'')}" data-u="endereco" data-i="${i}" placeholder="Endereço (opcional)" ${dis(ro)}>
         ${ro?'':`<button class="rm" data-rmu="${i}">×</button>`}
-      </div>`).join("")||`<div class="empty" style="padding:24px">Nenhuma unidade definida.</div>`;
-    $$("[data-u]").forEach(el=>el.onchange=()=>{D.unidades[+el.dataset.i][el.dataset.u]=el.value;});
+      </div>`;}).join("")||`<div class="empty" style="padding:24px">Nenhuma unidade definida.</div>`);
+    if(rep.size)$("#lu").insertAdjacentHTML("beforeend",
+      `<div class="aviso r">Cada unidade precisa de um código próprio — ele é a chave que agrupa
+        as respostas nos painéis e nos relatórios. Repetido(s): <b>${[...rep].map(esc).join(", ")}</b>.
+        Use algo como CL-01, CL-02, CL-03, e deixe o nome da entidade no campo do nome.</div>`);
+    $$("[data-u]").forEach(el=>el.onchange=()=>{
+      D.unidades[+el.dataset.i][el.dataset.u]=el.value;
+      // ao nomear uma unidade ainda sem código, preenche um sugerido
+      if(el.dataset.u==="nome"){
+        const u=D.unidades[+el.dataset.i];
+        if(!(u.codigo||"").trim())u.codigo=sugereCodigo(el.value,+el.dataset.i);
+      }
+      pinta();
+    });
     $$("[data-rmu]").forEach(b=>b.onclick=()=>{D.unidades.splice(+b.dataset.rmu,1);pinta();});
   };
   pinta();
@@ -2142,12 +2196,27 @@ function edUnidades(ro){
   });
   on("#u_salvar","click",async()=>{
     const val=D.unidades.filter(u=>(u.codigo||'').trim()&&(u.nome||'').trim());
+    const rep=codigosRepetidos();
+    if(rep.size){
+      toast(`Código repetido: ${[...rep].join(", ")}. Dê um código próprio a cada unidade.`);
+      pinta();return;
+    }
+    const semCodigo=(D.unidades||[]).filter(u=>(u.nome||'').trim()&&!(u.codigo||'').trim());
+    if(semCodigo.length){
+      toast("Há unidade sem código. Preencha o primeiro campo de cada linha.");
+      pinta();return;
+    }
     await sb.from("av_unidades").delete().eq("formulario_id",D.formulario.id);
     if(val.length){
       const {error}=await sb.from("av_unidades").insert(val.map((u,i)=>({
         formulario_id:D.formulario.id,codigo:u.codigo.trim(),nome:u.nome.trim(),
         endereco:u.endereco||null,ordem:i+1})));
-      if(error){toast(error.message);return;}
+      if(error){
+        toast(/duplicate key|unique constraint/i.test(error.message||"")
+          ? "Há códigos de unidade repetidos. Cada unidade precisa de um código próprio."
+          : error.message);
+        return;
+      }
     }
     toast("Unidades salvas.");abrirEditor(D.formulario.id);
   });
